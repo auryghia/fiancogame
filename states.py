@@ -8,30 +8,58 @@ class Piece:
     def __init__(self, i, j, team) -> None:
         self.i = i
         self.j = j
-
         self.team = team
         self.is_king = False
         self.is_selected = False
-        self.is_possible = {
-            (self.i - 1, self.j): False,
+        self.possible_moves = {
             (self.i - 1, self.j - 1): False,
             (self.i - 1, self.j + 1): False,
+            (self.i, self.j - 1): False,
+            (self.i, self.j + 1): False,
+            (self.i - 1, self.j): False,
         }
 
-    def select(self):
-        self.is_selected = True
+    # def deselect(self):
+    #     self.is_selected = False
 
-    def deselect(self):
-        self.is_selected = False
+    def possible_moves_f(self, board):  # select possible moves
+        if (
+            board[self.i - 1][self.j - 1] == 2 and board[self.i - 2][self.j - 2] == 0
+        ) or (
+            board[self.i - 1][self.j + 1] == 2 and board[self.i - 2][self.j + 2] == 0
+        ):
+            if (
+                board[self.i - 1][self.j - 1] == 2
+                and board[self.i - 2][self.j - 2] == 0
+            ):
+                self.possible_moves[(self.i - 2, self.j - 2)] = True
+            if (
+                board[self.i - 1][self.j + 1] == 2
+                and board[self.i - 2][self.j + 2] == 0
+            ):
+                self.possible_moves[(self.i - 2, self.j + 2)] = True
+        else:
+            # Esegui se nessuno dei precedenti blocchi è vero
+            if board[self.i][self.j + 1] == 0:
+                self.possible_moves[(self.i, self.j + 1)] = True
+            if board[self.i][self.j - 1] == 0:
+                self.possible_moves[(self.i, self.j - 1)] = True
+            if board[self.i - 1][self.j] == 0:
+                self.possible_moves[(self.i - 1, self.j)] = True
 
-    def is_possible(self, board):  # select possible moves
+    # def select(self):
+    #     self.is_selected = True
 
-        if board[self.i - 1][self.j] == 0:
-            self.is_possible[(self.i - 1, self.j)] = True
-        if board[self.i - 1][self.j - 1] == 0:
-            self.is_possible[(self.i - 1, self.j)] = True
-        if board[self.i - 1][self.j + 1] == 0:
-            self.is_possible[(self.i - 1, self.j)] = True
+    def move(self, i, j):
+        self.i = i
+        self.j = j
+        self.possible_moves = {
+            (self.i - 1, self.j - 1): False,
+            (self.i - 1, self.j + 1): False,
+            (self.i, self.j - 1): False,
+            (self.i, self.j + 1): False,
+            (self.i - 1, self.j): False,
+        }
 
 
 class Board:
@@ -78,17 +106,24 @@ class Board:
                 self.pieces.append(piece)
                 l -= 1
 
+    def move_pieces(self, i, j):
+        for piece in self.pieces:
+            if piece.is_selected:
+                self.board[piece.i, piece.j] = 0
+                piece.move(i, j)
+                self.board[piece.i, piece.j] = piece.team
+
 
 class PygameEnviroment(Board):
-    def __init__(self, board: Board) -> None:
+    def __init__(self, board_obj: Board) -> None:
         super().__init__()
-        self.board = board
+        self.board_obj = board_obj
+        self.board = self.board_obj.board
 
     def show(self, screen, screen_size, cell_size):
-        pieces = self.board.pieces
-        print(pieces, "hii")
+        pieces = self.board_obj.pieces
+
         for piece in pieces:
-            print(piece.i, piece.j, piece.team)
             if piece.team == 1:
                 pygame.draw.circle(
                     screen,
@@ -100,6 +135,15 @@ class PygameEnviroment(Board):
                     cell_size // 2 - 5,
                     4,
                 )
+            if piece.is_selected:
+
+                for move in piece.possible_moves:
+                    if piece.possible_moves[move]:
+                        center = (
+                            move[1] * cell_size + cell_size // 2,
+                            move[0] * cell_size + cell_size // 2,
+                        )
+                        pygame.draw.circle(screen, (0, 255, 0), center, 15)
 
             elif piece.team == 2:
                 pygame.draw.circle(
