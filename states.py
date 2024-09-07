@@ -35,49 +35,9 @@ class Piece:
         }
 
     def possible_moves_up(self, board):
+        # Reset delle mosse possibili
 
-        if self.i - 2 >= 0:
-            if (
-                self.j - 2 >= 0
-                and board[self.i - 1][self.j - 1] == self.opp_team
-                and board[self.i - 2][self.j - 2] == 0
-            ):
-                self.possible_moves[(self.i - 2, self.j - 2)] = True
-            if (
-                self.j + 2 <= 8
-                and board[self.i - 1][self.j + 1] == self.opp_team
-                and board[self.i - 2][self.j + 2] == 0
-            ):
-                self.possible_moves[(self.i - 2, self.j + 2)] = True
-
-        if self.i - 1 >= 0:
-            if board[self.i - 1][self.j] == 0:
-                self.possible_moves[(self.i - 1, self.j)] = True
-
-    def possible_moves_down(self, board):
-        if self.i + 2 <= 8:
-            if (
-                self.j - 2 >= 0
-                and board[self.i + 1][self.j - 1] == self.opp_team
-                and board[self.i + 2][self.j - 2] == 0
-            ):
-                self.possible_moves[(self.i + 2, self.j - 2)] = True
-            if (
-                self.j + 2 <= 8
-                and board[self.i + 1][self.j + 1] == self.opp_team
-                and board[self.i + 2][self.j + 2] == 0
-            ):
-                self.possible_moves[(self.i + 2, self.j + 2)] = True
-
-        if self.i + 1 <= 8:
-            if board[self.i + 1][self.j] == 0:
-                self.possible_moves[(self.i + 1, self.j)] = True
-
-    def move(self, i, j):
-        self.old_i = self.i
-        self.old_j = self.j
-        self.i = i
-        self.j = j
+        # Controllo dei movimenti di base
         self.possible_moves = {
             (self.i - 2, self.j - 2): False,
             (self.i - 2, self.j + 2): False,
@@ -88,6 +48,104 @@ class Piece:
             (self.i + 2, self.j - 2): False,
             (self.i + 1, self.j): False,
         }
+        if self.i - 1 >= 0:
+            # Movimento verso l'alto
+            if board[self.i - 1][self.j] == 0:
+                self.possible_moves[(self.i - 1, self.j)] = True
+
+            # Movimento verso sinistra
+            if self.j - 1 >= 0 and board[self.i][self.j - 1] == 0:
+                self.possible_moves[(self.i, self.j - 1)] = True
+
+            # Movimento verso destra
+            if self.j + 1 <= 8 and board[self.i][self.j + 1] == 0:
+                self.possible_moves[(self.i, self.j + 1)] = True
+
+        # Controllo delle catture obbligatorie
+        if self.i - 2 >= 0:
+            # Salto diagonale a sinistra
+            if (
+                self.j - 2 >= 0
+                and board[self.i - 1][self.j - 1] == self.opp_team
+                and board[self.i - 2][self.j - 2] == 0
+            ):
+                self.possible_moves[(self.i - 1, self.j)] = False
+                self.possible_moves[(self.i, self.j - 1)] = False
+                self.possible_moves[(self.i, self.j + 1)] = False
+                self.possible_moves[(self.i - 2, self.j - 2)] = True
+
+            # Salto diagonale a destra
+            if (
+                self.j + 2 <= 8
+                and board[self.i - 1][self.j + 1] == self.opp_team
+                and board[self.i - 2][self.j + 2] == 0
+            ):
+                self.possible_moves[(self.i + 1, self.j)] = False
+                self.possible_moves[(self.i, self.j - 1)] = False
+                self.possible_moves[(self.i, self.j + 1)] = False
+                self.possible_moves[(self.i - 2, self.j + 2)] = True
+
+        # Se non è obbligatorio catturare, mantieni solo le mosse di movimento ordinario
+
+    def possible_moves_down(self, board):
+        self.possible_moves = {
+            (self.i - 2, self.j - 2): False,
+            (self.i - 2, self.j + 2): False,
+            (self.i, self.j - 1): False,
+            (self.i, self.j + 1): False,
+            (self.i - 1, self.j): False,
+            (self.i + 2, self.j + 2): False,
+            (self.i + 2, self.j - 2): False,
+            (self.i + 1, self.j): False,
+        }
+        # Reset delle mosse possibili
+
+        # Controllo dei movimenti di base
+        if self.i + 1 <= 8:
+            # Movimento verso il basso
+            if board[self.i + 1][self.j] == 0:
+
+                self.possible_moves[(self.i + 1, self.j)] = True
+
+            # Movimento verso sinistra
+            if self.j - 1 >= 0 and board[self.i][self.j - 1] == 0:
+
+                self.possible_moves[(self.i, self.j - 1)] = True
+
+            # Movimento verso destra
+            if self.j + 1 <= 8 and board[self.i][self.j + 1] == 0:
+                self.possible_moves[(self.i, self.j + 1)] = True
+
+        # Controllo delle catture obbligatorie
+
+        if self.i + 2 <= 8:
+            # Salto diagonale a sinistra
+            if (
+                self.j - 2 >= 0
+                and board[self.i + 1][self.j - 1] == self.opp_team
+                and board[self.i + 2][self.j - 2] == 0
+            ):
+                self.possible_moves[(self.i + 1, self.j)] = False
+                self.possible_moves[(self.i, self.j - 1)] = False
+                self.possible_moves[(self.i, self.j + 1)] = False
+                self.possible_moves[(self.i + 2, self.j - 2)] = True
+
+            # Salto diagonale a destra
+            if (
+                self.j + 2 <= 8
+                and board[self.i + 1][self.j + 1] == self.opp_team
+                and board[self.i + 2][self.j + 2] == 0
+            ):
+                self.possible_moves[(self.i + 1, self.j)] = False
+                self.possible_moves[(self.i, self.j - 1)] = False
+                self.possible_moves[(self.i, self.j + 1)] = False
+                self.possible_moves[(self.i + 2, self.j + 2)] = True
+
+    def move(self, i, j):
+        self.old_i = self.i
+        self.old_j = self.j
+        self.i = i
+        self.j = j
 
 
 class Board:
@@ -236,6 +294,7 @@ class AlphaBeta:
                             break
                 b.board[piece.i, piece.j] = piece.team
                 b.turn = 2 if b.turn == 1 else 1
+
                 piece.is_selected = False
         return b
 
@@ -280,49 +339,16 @@ class AlphaBeta:
         return boards
 
 
-# class AlphaBeta:
-#     def __init__(self) -> None:
-#         self.proof = 3
-
-#     def alpha_beta_Negamax(self, board: Board, depth, alpha, beta):
-
-#         if depth == 0:
-#             board.utility_function()
-#             # Assegna il valore restituito alla proprietà utility
-#             return board.utility
-
-#         score = -math.inf
-#         boards = board.next_moves()
-
-#         # return the utility function
-#         for b in boards:
-#             print(b.board)
-#             # board é un oggetto di tipo Board
-
-#             value = -self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
-#             print(value, "board")
-#             if value > beta:
-#                 score = value
-
-#             if score > alpha:
-#                 alpha = score
-
-#             if alpha >= beta:
-#                 break
-#         print(score, "score")
-#         return score
-
-
-class PygameEnviroment(Board):
+class PygameEnviroment:
     def __init__(
         self,
         board_obj: Board,
-        player,
+        player: Player,
         player1: str = "automatic",
         player2: str = "manually",
     ) -> None:
-        super().__init__(player)
         self.board_obj = board_obj
+        self.player = player
         self.player1 = player1
         self.player2 = player2
 
@@ -332,8 +358,8 @@ class PygameEnviroment(Board):
         letters = "abcdefghi"
         numbers_team_1 = "987654321"  # team 1
         numbers_team_2 = "123456789"  # team 2
-        numbers = numbers_team_1 if self.team == 1 else numbers_team_2
-
+        numbers = numbers_team_1 if self.board_obj.team == 1 else numbers_team_2
+        # print(self.board)
         for piece in pieces:
 
             color = (0, 0, 0)
