@@ -35,62 +35,47 @@ class Piece:
         }
 
     def possible_moves_up(self, board):
-        # Verifica che l'indice superiore e laterale non siano fuori dai limiti
-        if self.i - 2 >= 0 and self.j - 2 >= 0 and self.j + 2 <= 8:
 
+        if self.i - 2 >= 0:
             if (
-                board[self.i - 1][self.j - 1] == self.opp_team
+                self.j - 2 >= 0
+                and board[self.i - 1][self.j - 1] == self.opp_team
                 and board[self.i - 2][self.j - 2] == 0
             ):
                 self.possible_moves[(self.i - 2, self.j - 2)] = True
             if (
-                board[self.i - 1][self.j + 1] == self.opp_team
+                self.j + 2 <= 8
+                and board[self.i - 1][self.j + 1] == self.opp_team
                 and board[self.i - 2][self.j + 2] == 0
             ):
                 self.possible_moves[(self.i - 2, self.j + 2)] = True
 
-        # Controlla se è possibile muovere a sinistra, destra o in avanti senza saltare
         if self.i - 1 >= 0:
-            # Muovi a sinistra se la cella è vuota
-            if self.j - 1 >= 0 and board[self.i - 1][self.j - 1] == 0:
-                self.possible_moves[(self.i - 1, self.j - 1)] = True
-            # Muovi a destra se la cella è vuota
-            if self.j + 1 <= 8 and board[self.i - 1][self.j + 1] == 0:
-                self.possible_moves[(self.i - 1, self.j + 1)] = True
-            # Muovi in avanti se la cella è vuota
             if board[self.i - 1][self.j] == 0:
                 self.possible_moves[(self.i - 1, self.j)] = True
 
     def possible_moves_down(self, board):
-        if self.i + 1 <= 8 and self.j - 1 >= 0 and self.j + 1 <= 8:
+        if self.i + 2 <= 8:
             if (
-                board[self.i + 1][self.j - 1] == self.opp_team
+                self.j - 2 >= 0
+                and board[self.i + 1][self.j - 1] == self.opp_team
                 and board[self.i + 2][self.j - 2] == 0
-            ) or (
-                board[self.i + 1][self.j + 1] == self.opp_team
+            ):
+                self.possible_moves[(self.i + 2, self.j - 2)] = True
+            if (
+                self.j + 2 <= 8
+                and board[self.i + 1][self.j + 1] == self.opp_team
                 and board[self.i + 2][self.j + 2] == 0
             ):
-                if (
-                    board[self.i + 1][self.j - 1] == self.opp_team
-                    and board[self.i + 2][self.j - 2] == 0
-                ):
-                    self.possible_moves[(self.i + 2, self.j - 2)] = True
-                if (
-                    board[self.i + 1][self.j + 1] == self.opp_team
-                    and board[self.i + 2][self.j + 2] == 0
-                ):
-                    self.possible_moves[(self.i + 2, self.j + 2)] = True
-        else:
-            if self.i + 1 <= 8 and self.j - 1 >= 0 and self.j + 1 <= 8:
-                if board[self.i][self.j + 1] == 0 and self.j + 1 <= 8:
-                    self.possible_moves[(self.i, self.j + 1)] = True
-                if board[self.i][self.j - 1] == 0 and self.j - 1 >= 0:
-                    self.possible_moves[(self.i, self.j - 1)] = True
-                if board[self.i + 1][self.j] == 0 and self.i + 1 <= 8:
+                self.possible_moves[(self.i + 2, self.j + 2)] = True
 
-                    self.possible_moves[(self.i + 1, self.j)] = True
+        if self.i + 1 <= 8:
+            if board[self.i + 1][self.j] == 0:
+                self.possible_moves[(self.i + 1, self.j)] = True
 
     def move(self, i, j):
+        self.old_i = self.i
+        self.old_j = self.j
         self.i = i
         self.j = j
         self.possible_moves = {
@@ -153,59 +138,9 @@ class Board:
                 self.pieces.append(piece)
                 l -= 1
 
-    def move_pieces(self, i, j):
-        for piece in self.pieces:
-            if piece.is_selected:
-                self.board[piece.i, piece.j] = 0
-
-                self.old_i, self.old_j = piece.i, piece.j
-
-                piece.move(i, j)
-
-                if abs(i - self.old_i) == 2:
-
-                    mid_i = (i + self.old_i) // 2
-                    mid_j = (j + self.old_j) // 2
-
-                    self.board[mid_i, mid_j] = 0
-
-                    for p in self.pieces:
-                        if p.i == mid_i and p.j == mid_j:
-                            self.pieces.remove(p)
-                            break
-                self.board[piece.i, piece.j] = piece.team
-
-    def next_moves(self):  # trova la combinazione di mosse possibili
-        boards = []
-
-        for piece in self.pieces:
-            piece.is_selected = True
-            if piece.team == self.turn:
-                if piece.team == self.team:
-                    piece.possible_moves_up(self.board)
-                else:
-                    piece.possible_moves_down(self.board)
-
-                for move in piece.possible_moves:
-
-                    if piece.possible_moves[move] == True:
-
-                        new_board = Board(
-                            self.player, copy.deepcopy(self.pieces), self.turn
-                        )
-
-                        new_board.board = copy.deepcopy(self.board)
-
-                        new_board.move_pieces(move[0], move[1])
-
-                        boards.append(new_board)
-            piece.is_selected = False
-
-        return boards
-
     def utility_function(
         self,
-    ):  # calcola la funzione di utilitá per ogni board sia dal punto di vista del giocatore che dell' avversario
+    ):
         utility = 0
         if self.turn == self.team:  # se é il mio turno
             num_opponent_pieces = 0
@@ -238,35 +173,144 @@ class Board:
 
 
 class AlphaBeta:
-    def __init__(self, board: Board, depth: int, alpha, beta) -> None:
-        self.board = board
-        self.depth = depth
-        self.alpha = alpha
-        self.beta = beta
+    def __init__(self) -> None:
+        self.proof = 3
 
-    def alpha_beta_Negamax(self, board):
-
-        if self.depth == 0:
+    def alpha_beta_Negamax(self, board: Board, depth, alpha, beta):
+        if depth == 0:
             board.utility_function()
-            return board.utility
+            return (
+                board.utility,
+                board,
+            )
+
         score = -math.inf
-        boards = self.board.next_moves()
+        best_board = None
+        boards = self.next_moves(board)
 
-        # return the utility function
         for b in boards:
-            # board é un oggetto di tipo Board
-            alpha_beta = AlphaBeta(b, self.depth - 1, -self.beta, -self.alpha)
-            value = -alpha_beta.alpha_beta_Negamax()
-            if value > self.beta:
-                self.score = value
-                self.board = self.board
-            if score > self.alpha:
-                self.alpha = self.score
+            # print(b.board, "board", b.utility_function())
 
-            if self.alpha >= self.beta:
+            value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
+
+            value = -value
+            # print(value, "value", b.board, "board")
+            if value > score:
+
+                score = value
+                # print(b.board, "board")
+                best_board = copy.deepcopy(b)
+                # print(best_board.board, "board migliore fino ad ora")
+                # print(
+                #     score, best_board.board, depth, "score aggiornato"
+                # )
+            alpha = max(alpha, score)
+
+            if alpha >= beta:
                 break
 
-        return score
+        return (
+            score,
+            best_board,
+        )
+
+    def move_pieces(self, b: Board, i, j):
+        for piece in b.pieces:
+            if piece.is_selected:
+                b.board[piece.i, piece.j] = 0
+
+                piece.old_i, piece.old_j = piece.i, piece.j
+
+                piece.move(i, j)
+
+                if abs(i - piece.old_i) == 2:
+
+                    mid_i = (i + piece.old_i) // 2
+                    mid_j = (j + piece.old_j) // 2
+
+                    b.board[mid_i, mid_j] = 0
+
+                    for p in b.pieces:
+                        if p.i == mid_i and p.j == mid_j:
+                            b.pieces.remove(p)
+                            break
+                b.board[piece.i, piece.j] = piece.team
+                b.turn = 2 if b.turn == 1 else 1
+                piece.is_selected = False
+        return b
+
+    def next_moves(self, board: Board):
+        boards = []
+
+        for piece in board.pieces:
+
+            piece.is_selected = True
+            # print(
+            #     piece.i,
+            #     piece.j,
+            #     piece.team,
+            #     "piece",
+            #     piece.is_selected,
+            #     board.turn,
+            #     "turno",
+            # )
+            if piece.team == board.turn:
+                if piece.team == board.team:
+                    piece.possible_moves_up(board.board)
+                else:
+                    piece.possible_moves_down(board.board)
+
+                for move in piece.possible_moves:
+                    if piece.possible_moves[move] == True:
+
+                        new_board_obj = Board(
+                            board.player, copy.deepcopy(board.pieces), board.turn
+                        )
+                        new_board_obj.board = copy.deepcopy(board.board)
+                        # print(new_board_obj.board, "new_board")
+                        new_board_obj = self.move_pieces(
+                            new_board_obj, move[0], move[1]
+                        )
+                        # print(new_board_obj.board, "new_board_mossa")
+
+                        boards.append(new_board_obj)
+
+            piece.is_selected = False
+
+        return boards
+
+
+# class AlphaBeta:
+#     def __init__(self) -> None:
+#         self.proof = 3
+
+#     def alpha_beta_Negamax(self, board: Board, depth, alpha, beta):
+
+#         if depth == 0:
+#             board.utility_function()
+#             # Assegna il valore restituito alla proprietà utility
+#             return board.utility
+
+#         score = -math.inf
+#         boards = board.next_moves()
+
+#         # return the utility function
+#         for b in boards:
+#             print(b.board)
+#             # board é un oggetto di tipo Board
+
+#             value = -self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
+#             print(value, "board")
+#             if value > beta:
+#                 score = value
+
+#             if score > alpha:
+#                 alpha = score
+
+#             if alpha >= beta:
+#                 break
+#         print(score, "score")
+#         return score
 
 
 class PygameEnviroment(Board):

@@ -17,7 +17,8 @@ background_color = (255, 255, 255)
 player = Player()
 board_obj = Board(turn=1, player=player)
 env = PygameEnviroment(board_obj, player)
-env.create_boards()  # initialize the board
+env.create_boards()
+abeta = AlphaBeta()  # initialize the board
 # initialize the enviroment
 
 
@@ -75,17 +76,18 @@ while running:
                         ]:
                             if 0 <= row < screen_size and 0 <= col < screen_size:
 
-                                env.move_pieces(row, col)
+                                env = abeta.move_pieces(row, col)
                                 env.turn = 2 if env.turn == 1 else 1
                                 piece.is_selected = False
 
         elif env.player1 == "automatic" and env.player2 == "manually":
             if env.turn == env.team:  # se é il mio turno
 
-                aba = AlphaBeta(env, 3, -np.inf, np.inf)
-                best_move = aba.alpha_beta_Negamax()
+                aba = AlphaBeta()
+                best_score, best_move = aba.alpha_beta_Negamax(env, 3, -np.inf, np.inf)
+                # print(best_score, best_move.board, "mossa scelta")
+                env.board_obj = best_move
 
-                print(best_move)
             # for piece in env.pieces:
             #         if piece.team == env.turn:
             #             if piece.i == row and piece.j == col:
