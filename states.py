@@ -5,13 +5,6 @@ import math
 import copy
 
 
-class Player:
-
-    def __init__(self, team: int = 1) -> None:
-
-        self.team = team
-
-
 class Piece:
 
     def __init__(self, i, j, team) -> None:
@@ -142,17 +135,17 @@ class Piece:
 
 
 class Board:
-    def __init__(self, player: Player, pieces: List[Piece] = [], turn: int = 1) -> None:
-        self.team = player.team
-        self.player = player
+    def __init__(self, team, pieces: List[Piece] = [], turn: int = 1) -> None:
+        self.team = team
         self.pieces = pieces
+        self.old_pieces = []
         self.board = np.zeros((9, 9), dtype=int)
         self.turn = turn
         self.score = -math.inf
         self.best_move = None
         self.utility = 0
         self.moves = []
-        self.old_moves_pieces = [None]
+        self.old_moves_piece = None
 
     def create_boards(
         self,
@@ -190,6 +183,11 @@ class Board:
                 piece = Piece(i, f, 1 if self.team == 1 else 2)
                 self.pieces.append(piece)
                 l -= 1
+
+    def change_board(self):
+        self.board = np.zeros((9, 9), dtype=int)
+        for piece in self.pieces:
+            self.board[piece.i, piece.j] = piece.team
 
     def utility_function(
         self,
@@ -230,6 +228,7 @@ class AlphaBeta:
         self.proof = 3
 
     def alpha_beta_Negamax(self, board: Board, depth, alpha, beta):
+
         if depth == 0:
             board.utility_function()
             return (
@@ -253,6 +252,7 @@ class AlphaBeta:
                 score = value
 
                 best_board = copy.deepcopy(b)
+                best_board.old_pieces = old_pieces
 
             alpha = max(alpha, score)
 
@@ -266,6 +266,7 @@ class AlphaBeta:
 
     def move_pieces(self, b: Board, i, j):
         for piece in b.pieces:
+
             if piece.is_selected:
 
                 b.board[piece.i, piece.j] = 0
@@ -286,7 +287,6 @@ class AlphaBeta:
                             b.pieces.remove(p)
                             break
                 b.board[piece.i, piece.j] = piece.team
-                b.turn = 2 if b.turn == 1 else 1
 
                 piece.is_selected = False
         return b
@@ -315,15 +315,13 @@ class AlphaBeta:
                 for move in piece.possible_moves:
                     if piece.possible_moves[move] == True:
 
-                        new_board_obj = Board(
-                            board.player, copy.deepcopy(board.pieces), board.turn
-                        )
-                        new_board_obj.board = copy.deepcopy(board.board)
+                        new_board_obj = copy.deepcopy(board)
                         # print(new_board_obj.board, "new_board")
                         new_board_obj = self.move_pieces(
                             new_board_obj, move[0], move[1]
                         )
-                        new_board_obj.old_moves_pieces = [copy.deepcopy(piece)]
+                        new_board_obj.turn = 1 if board.turn == 2 else 2
+
                         # new_board_obj.old_board = copy.deepcopy(board)
                         # print(new_board_obj.board, "new_board_mossa")
 
@@ -338,16 +336,14 @@ class PygameEnviroment:
     def __init__(
         self,
         board_obj: Board,
-        player: Player,
         player1: str = "automatic",
         player2: str = "manually",
     ) -> None:
         self.board_obj = board_obj
-        self.player = player
         self.player1 = player1
         self.player2 = player2
 
-    def show(self, screen, screen_size, cell_size):
+    def show(self, screen, screen_size, grid_size, cell_size):
         pieces = self.board_obj.pieces
         font = pygame.font.Font(None, 36)
         letters = "abcdefghi"
@@ -379,8 +375,8 @@ class PygameEnviroment:
                         )
                         pygame.draw.circle(screen, (0, 255, 0), center, 15)
 
-        for x in range(0, screen_size, cell_size):
-            for y in range(0, screen_size, cell_size):
+        for x in range(0, grid_size, cell_size):
+            for y in range(0, grid_size, cell_size):
                 rect = pygame.Rect(x, y, cell_size, cell_size)
                 pygame.draw.rect(screen, (0, 0, 0), rect, 1)
 
