@@ -37,6 +37,33 @@ while running:
 
         if event.type == pygame.QUIT:
             running = False
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_k:
+                for piece in env.board_obj.old_moves_pieces:
+                    print(piece.is_selected)
+
+                    piece.is_selected = True
+                    print(piece.is_selected)
+                    print(piece.old_i, piece.old_j, piece.i, piece.j)
+                    env.board_obj = abeta.move_pieces(
+                        env.board_obj, piece.old_i, piece.old_j
+                    )
+
+                    print(env.board_obj.board)
+                    print(piece.old_i, piece.old_j, piece.i, piece.j)
+                    # print(board_undo.board)
+
+                    print(
+                        "undo",
+                        env.board_obj.board,
+                        piece.old_i,
+                        piece.old_j,
+                        piece.i,
+                        piece.j,
+                    )
+
+                    piece.is_selected = False
+                    break
         if env.player1 == "manually" and env.player2 == "manually":
             if event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_x, mouse_y = event.pos
@@ -127,6 +154,15 @@ while running:
                                 if 0 <= row < screen_size and 0 <= col < screen_size:
                                     env.board_obj = abeta.move_pieces(
                                         env.board_obj, row, col
+                                    )
+
+                                    env.board_obj.old_moves_pieces = [
+                                        copy.deepcopy(piece)
+                                    ]
+                                    print(env.board_obj.old_moves_pieces)
+                                    print(
+                                        env.board_obj.old_moves_pieces[0].old_i,
+                                        env.board_obj.old_moves_pieces[0].old_j,
                                     )
 
 

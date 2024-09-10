@@ -49,21 +49,18 @@ class Piece:
             (self.i + 1, self.j): False,
         }
         if self.i - 1 >= 0:
-            # Movimento verso l'alto
+
             if board[self.i - 1][self.j] == 0:
                 self.possible_moves[(self.i - 1, self.j)] = True
 
-            # Movimento verso sinistra
             if self.j - 1 >= 0 and board[self.i][self.j - 1] == 0:
                 self.possible_moves[(self.i, self.j - 1)] = True
 
-            # Movimento verso destra
             if self.j + 1 <= 8 and board[self.i][self.j + 1] == 0:
                 self.possible_moves[(self.i, self.j + 1)] = True
 
-        # Controllo delle catture obbligatorie
         if self.i - 2 >= 0:
-            # Salto diagonale a sinistra
+
             if (
                 self.j - 2 >= 0
                 and board[self.i - 1][self.j - 1] == self.opp_team
@@ -74,7 +71,6 @@ class Piece:
                 self.possible_moves[(self.i, self.j + 1)] = False
                 self.possible_moves[(self.i - 2, self.j - 2)] = True
 
-            # Salto diagonale a destra
             if (
                 self.j + 2 <= 8
                 and board[self.i - 1][self.j + 1] == self.opp_team
@@ -84,8 +80,6 @@ class Piece:
                 self.possible_moves[(self.i, self.j - 1)] = False
                 self.possible_moves[(self.i, self.j + 1)] = False
                 self.possible_moves[(self.i - 2, self.j + 2)] = True
-
-        # Se non è obbligatorio catturare, mantieni solo le mosse di movimento ordinario
 
     def possible_moves_down(self, board):
         self.possible_moves = {
@@ -142,8 +136,7 @@ class Piece:
                 self.possible_moves[(self.i + 2, self.j + 2)] = True
 
     def move(self, i, j):
-        self.old_i = self.i
-        self.old_j = self.j
+
         self.i = i
         self.j = j
 
@@ -158,6 +151,8 @@ class Board:
         self.score = -math.inf
         self.best_move = None
         self.utility = 0
+        self.moves = []
+        self.old_moves_pieces = [None]
 
     def create_boards(
         self,
@@ -252,16 +247,13 @@ class AlphaBeta:
             value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
 
             value = -value
-            # print(value, "value", b.board, "board")
+
             if value > score:
 
                 score = value
-                # print(b.board, "board")
+
                 best_board = copy.deepcopy(b)
-                # print(best_board.board, "board migliore fino ad ora")
-                # print(
-                #     score, best_board.board, depth, "score aggiornato"
-                # )
+
             alpha = max(alpha, score)
 
             if alpha >= beta:
@@ -275,6 +267,7 @@ class AlphaBeta:
     def move_pieces(self, b: Board, i, j):
         for piece in b.pieces:
             if piece.is_selected:
+
                 b.board[piece.i, piece.j] = 0
 
                 piece.old_i, piece.old_j = piece.i, piece.j
@@ -330,6 +323,8 @@ class AlphaBeta:
                         new_board_obj = self.move_pieces(
                             new_board_obj, move[0], move[1]
                         )
+                        new_board_obj.old_moves_pieces = [copy.deepcopy(piece)]
+                        # new_board_obj.old_board = copy.deepcopy(board)
                         # print(new_board_obj.board, "new_board_mossa")
 
                         boards.append(new_board_obj)
