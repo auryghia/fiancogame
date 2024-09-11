@@ -3,7 +3,7 @@ import sys
 import random
 import time
 import numpy as np
-from states import Piece, Board, PygameEnviroment, AlphaBeta
+from states import Piece, Board, PygameEnviroment, eNegaMax
 import copy
 
 pygame.init()
@@ -14,13 +14,12 @@ cell_size = grid_size // 9
 screen = pygame.display.set_mode((screen_size[0], screen_size[1]))
 pygame.display.set_caption("Scacchiera 9x9")
 
-
 background_color = (255, 255, 255)
 
-board_obj = Board(turn=1, team=2)
+board_obj = Board(turn=1, team=1)
 env = PygameEnviroment(board_obj)
 env.board_obj.create_boards()
-abeta = AlphaBeta()
+engine = eNegaMax()
 # initialize the board
 # initialize the enviroment
 
@@ -53,10 +52,24 @@ while running:
                 # print([(piece.i, piece.j) for piece in env.board_obj.old_pieces])
 
                 env.board_obj.change_board()
+                time.sleep(0.5)
+
+            if event.key == pygame.K_n:
+                if env.board_obj.turn == env.board_obj.team:
+                    # se è il turno del giocatore automatico
+                    # print(env.board_obj.board)
+                    old_pieces = copy.deepcopy(env.board_obj.pieces)
+
+                    best_score, best_move = engine.alpha_beta_Negamax(
+                        env.board_obj, 3, -np.inf, np.inf
+                    )
+                    best_move.old_pieces = old_pieces
+                    env.board_obj = copy.deepcopy(best_move)
 
         else:
             if env.player1 == "manually" and env.player2 == "manually":
                 if event.type == pygame.MOUSEBUTTONDOWN:
+
                     mouse_x, mouse_y = event.pos
                     col = mouse_x // cell_size
                     row = mouse_y // cell_size
@@ -73,7 +86,7 @@ while running:
 
                                     (
                                         piece.possible_moves_up(env.board_obj.board)
-                                        if piece.team == 1
+                                        if piece.team == env.board_obj.team
                                         else piece.possible_moves_down(
                                             env.board_obj.board
                                         )
@@ -101,7 +114,7 @@ while running:
                             ]:
                                 if 0 <= row < screen_size and 0 <= col < screen_size:
 
-                                    env.board_obj = abeta.move_pieces(row, col)
+                                    env.board_obj = engine.move_pieces(row, col)
                                     if event.type == pygame.KEYDOWN:
                                         if event.key == pygame.K_k:
                                             print("redu")
@@ -116,21 +129,9 @@ while running:
                                     piece.is_selected = False
 
             elif env.player1 == "automatic" and env.player2 == "manually":
-                if env.board_obj.turn == env.board_obj.team:
 
-                    # se è il turno del giocatore automatico
-                    # print(env.board_obj.board)
-                    old_pieces = copy.deepcopy(env.board_obj.pieces)
+                if env.board_obj.turn != env.board_obj.team:
 
-                    aba = AlphaBeta()
-                    best_score, best_move = aba.alpha_beta_Negamax(
-                        env.board_obj, 3, -np.inf, np.inf
-                    )
-                    best_move.old_pieces = old_pieces
-
-                    env.board_obj = copy.deepcopy(best_move)
-
-                else:
                     # Gestione del turno del giocatore manuale
                     if event.type == pygame.MOUSEBUTTONDOWN:
                         mouse_x, mouse_y = event.pos
@@ -143,8 +144,9 @@ while running:
                                         for p in env.board_obj.pieces:
                                             p.is_selected = False
                                         piece.is_selected = True
-                                        piece.possible_moves_down(env.board_obj.board)
-
+                                        env.board_obj = engine.handle_capture(
+                                            env.board_obj
+                                        )
                                     else:
                                         piece.is_selected = False
 
@@ -164,7 +166,8 @@ while running:
                                         old_pieces = copy.deepcopy(
                                             env.board_obj.pieces
                                         )  # i vecchi pezzi sono una copia di quello fatto prima
-                                        env.board_obj = abeta.move_pieces(
+
+                                        env.board_obj = engine.move_pieces(
                                             env.board_obj, row, col
                                         )
 

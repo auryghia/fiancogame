@@ -53,26 +53,40 @@ class Piece:
                 self.possible_moves[(self.i, self.j + 1)] = True
 
         if self.i - 2 >= 0:
-
             if (
-                self.j - 2 >= 0
-                and board[self.i - 1][self.j - 1] == self.opp_team
-                and board[self.i - 2][self.j - 2] == 0
+                self.j - 2 >= 0  # Verifica che la colonna non sia fuori dai limiti
+                and board[self.i - 1][self.j - 1]
+                == self.opp_team  # La squadra avversaria è nella posizione intermedia
+                and board[self.i - 2][self.j - 2]
+                == 0  # La posizione di destinazione è vuota
             ):
+                # Assicurati di disabilitare le mosse non valide
                 self.possible_moves[(self.i - 1, self.j)] = False
                 self.possible_moves[(self.i, self.j - 1)] = False
                 self.possible_moves[(self.i, self.j + 1)] = False
+                # Imposta la mossa di cattura come valida
                 self.possible_moves[(self.i - 2, self.j - 2)] = True
 
             if (
-                self.j + 2 <= 8
-                and board[self.i - 1][self.j + 1] == self.opp_team
-                and board[self.i - 2][self.j + 2] == 0
+                self.j + 2 <= 8  # Verifica che la colonna non sia fuori dai limiti
+                and board[self.i - 1][self.j + 1]
+                == self.opp_team  # La squadra avversaria è nella posizione intermedia
+                and board[self.i - 2][self.j + 2]
+                == 0  # La posizione di destinazione è vuota
             ):
-                self.possible_moves[(self.i + 1, self.j)] = False
+                # Assicurati di disabilitare le mosse non valide
+                self.possible_moves[(self.i - 1, self.j)] = False
                 self.possible_moves[(self.i, self.j - 1)] = False
                 self.possible_moves[(self.i, self.j + 1)] = False
+                # Imposta la mossa di cattura come valida
                 self.possible_moves[(self.i - 2, self.j + 2)] = True
+
+        if self.i - 1 == 0 and board[self.i - 1][self.j] == 0:
+
+            self.possible_moves[(self.i - 1, self.j)] = True
+            for move in self.possible_moves:
+                if move != (self.i - 1, self.j):
+                    self.possible_moves[move] = False
 
     def possible_moves_down(self, board):
         self.possible_moves = {
@@ -127,6 +141,13 @@ class Piece:
                 self.possible_moves[(self.i, self.j - 1)] = False
                 self.possible_moves[(self.i, self.j + 1)] = False
                 self.possible_moves[(self.i + 2, self.j + 2)] = True
+        """
+        if self.i + 1 == 8 and board[self.i + 1][self.j] == 0:
+            self.possible_moves[(self.i + 1, self.j)] = True
+            for move in self.possible_moves:
+                if move != (self.i + 1, self.j):
+                    self.possible_moves[move] = False
+        """
 
     def move(self, i, j):
 
@@ -223,7 +244,7 @@ class Board:
                     self.utility = position_score - num_opponent_pieces + num_pieces
 
 
-class AlphaBeta:
+class eNegaMax:
     def __init__(self) -> None:
         self.proof = 3
 
@@ -246,13 +267,11 @@ class AlphaBeta:
             value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
 
             value = -value
-
             if value > score:
 
                 score = value
 
                 best_board = copy.deepcopy(b)
-                best_board.old_pieces = old_pieces
 
             alpha = max(alpha, score)
 
@@ -291,39 +310,71 @@ class AlphaBeta:
                 piece.is_selected = False
         return b
 
-    def next_moves(self, board: Board):
-        boards = []
+    def handle_capture(self, board: Board):
+        capture_available = False
 
         for piece in board.pieces:
-
-            piece.is_selected = True
-            # print(
-            #     piece.i,
-            #     piece.j,
-            #     piece.team,
-            #     "piece",
-            #     piece.is_selected,
-            #     board.turn,
-            #     "turno",
-            # )
             if piece.team == board.turn:
                 if piece.team == board.team:
                     piece.possible_moves_up(board.board)
                 else:
                     piece.possible_moves_down(board.board)
 
+                if (
+                    (
+                        piece.i - 2 >= 0
+                        and piece.j - 2 >= 0
+                        and piece.possible_moves[(piece.i - 2, piece.j - 2)] == True
+                    )
+                    or (
+                        piece.i - 2 >= 0
+                        and piece.j + 2 < 9
+                        and piece.possible_moves[(piece.i - 2, piece.j + 2)] == True
+                    )
+                    or (
+                        piece.i + 2 < 9
+                        and piece.j - 2 >= 0
+                        and piece.possible_moves[(piece.i + 2, piece.j - 2)] == True
+                    )
+                    or (
+                        piece.i + 2 < 9
+                        and piece.j + 2 < 9
+                        and piece.possible_moves[(piece.i + 2, piece.j + 2)] == True
+                    )
+                ):
+                    capture_available = True
+            if capture_available:
+                for p in board.pieces:
+                    if p.team == board.team:
+                        p.possible_moves_up(board.board)
+                    else:
+                        p.possible_moves_down(board.board)
+
+                    for move in p.possible_moves:
+                        if abs(move[0] - p.i) != 2 or abs(move[1] - p.j) != 2:
+                            p.possible_moves[move] = False
+
+        return board
+
+    def next_moves(self, board: Board):
+        boards = []
+
+        for piece in board.pieces:
+
+            piece.is_selected = True
+
+            if piece.team == board.turn:
+
+                board = self.handle_capture(board)
+
                 for move in piece.possible_moves:
                     if piece.possible_moves[move] == True:
 
                         new_board_obj = copy.deepcopy(board)
-                        # print(new_board_obj.board, "new_board")
                         new_board_obj = self.move_pieces(
                             new_board_obj, move[0], move[1]
                         )
                         new_board_obj.turn = 1 if board.turn == 2 else 2
-
-                        # new_board_obj.old_board = copy.deepcopy(board)
-                        # print(new_board_obj.board, "new_board_mossa")
 
                         boards.append(new_board_obj)
 
@@ -349,8 +400,9 @@ class PygameEnviroment:
         letters = "abcdefghi"
         numbers_team_1 = "987654321"  # team 1
         numbers_team_2 = "123456789"  # team 2
+        pink_color = (255, 105, 180)
+
         numbers = numbers_team_1 if self.board_obj.team == 1 else numbers_team_2
-        # print(self.board)
         for piece in pieces:
 
             color = (0, 0, 0)
@@ -378,7 +430,7 @@ class PygameEnviroment:
         for x in range(0, grid_size, cell_size):
             for y in range(0, grid_size, cell_size):
                 rect = pygame.Rect(x, y, cell_size, cell_size)
-                pygame.draw.rect(screen, (0, 0, 0), rect, 1)
+                pygame.draw.rect(screen, pink_color, rect, 1)
 
                 col = x // cell_size
                 row = y // cell_size
@@ -389,3 +441,10 @@ class PygameEnviroment:
                     center=(x + cell_size // 2, y + cell_size // 2)
                 )
                 screen.blit(text, text_rect)
+
+        player_text = "White's Turn" if self.board_obj.turn == 1 else "Black's Turn"
+        player_text_rendered = font.render(player_text, True, (0, 0, 0))
+        player_text_rect = player_text_rendered.get_rect(
+            center=(screen_size[0] - 80, screen_size[1] - 20)
+        )
+        screen.blit(player_text_rendered, player_text_rect)
