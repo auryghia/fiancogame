@@ -3,6 +3,7 @@ import numpy as np
 import pygame
 import math
 import copy
+import random
 
 
 class Piece:
@@ -12,6 +13,7 @@ class Piece:
         self.j = j
         self.old_i = None
         self.old_j = None
+        self.id = None
         self.team = team
         self.opp_team = 1 if team == 2 else 2
         self.is_king = False
@@ -164,28 +166,51 @@ class Board:
         self.turn = turn
         self.score = -math.inf
         self.best_move = None
+        self.dictionary = {}
         self.utility = 0
-        self.moves = []
+        self.zobrist = 0
+        self.score = -math.inf
+        self.upper_bound = math.inf
+        self.lower_bound = -math.inf
+        self.flag = None
+        self.depth = 0
+
         self.old_moves_piece = None
+
+    def number_creation(
+        self,
+    ):  # creazione di tutte le possibili chiavi zobrist per possibile tavola
+
+        for piece in self.pieces:
+            for i in range(9):
+                for j in range(9):
+
+                    self.dictionary[(piece.id, i, j)] = random.randint(0, 2**32 - 1)
 
     def create_boards(
         self,
     ):
         l = 1
-
+        number = 1
         for i in range(4):
             if i == 0:
                 self.board[0, 0:9] = 2 if self.team == 1 else 1
                 for col in range(9):
                     piece = Piece(0, col, 2 if self.team == 1 else 1)
                     self.pieces.append(piece)
+                    piece.id = number
+                    number += 1
             else:
                 j, m = l, 9 - l - 1
                 self.board[i, j] = 2 if self.team == 1 else 1
                 self.board[i, m] = 2 if self.team == 1 else 1
                 piece = Piece(i, j, 2 if self.team == 1 else 1)
+                piece.id = number
+                number += 1
                 self.pieces.append(piece)
                 piece = Piece(i, m, 2 if self.team == 1 else 1)
+                piece.id = number
+                number += 1
                 self.pieces.append(piece)
                 l += 1
         l = 3
@@ -194,14 +219,20 @@ class Board:
                 self.board[8, 0:9] = 1 if self.team == 1 else 2
                 for col in range(9):
                     piece = Piece(8, col, 1 if self.team == 1 else 2)
+                    piece.id = number
+                    number += 1
                     self.pieces.append(piece)
             else:
                 p, f = l, 9 - l - 1
                 self.board[i, p] = 1 if self.team == 1 else 2
                 self.board[i, f] = 1 if self.team == 1 else 2
                 piece = Piece(i, p, 1 if self.team == 1 else 2)
+                piece.id = number
+                number += 1
                 self.pieces.append(piece)
                 piece = Piece(i, f, 1 if self.team == 1 else 2)
+                piece.id = number
+                number += 1
                 self.pieces.append(piece)
                 l -= 1
 
@@ -247,41 +278,120 @@ class Board:
 class eNegaMax:
     def __init__(self) -> None:
         self.proof = 3
+        self.dictionary = {}
+        self.zobrist_keys = []
+        self.size = 4000
+        self.t_table = [[] for _ in range(self.size)]
+        self.num_elements = 0
+
+    # Usa int invece di float
+
+    def zobrist_hash(self, board: Board):
+        zobrist_value = 0
+
+        for piece in board.pieces:
+            zobrist_value ^= board.dictionary[(piece.id, piece.i, piece.j)]
+
+        return zobrist_value
+
+    def hash_index(self, zobrist_value):
+        return zobrist_value % self.size
+
+    def insert(self, board: Board):
+        if self.num_elements / self.size > 0.75:
+            self._resize()
+        board.zobrist = self.zobrist_hash(board)
+        index = self.hash_index(board.zobrist)
+        self.t_table[index].append(
+            (
+                board.zobrist,
+                {
+                    "score": board.score,
+                    "flag": board.flag,
+                    "upper_bound": board.upper_bound,
+                    "lower_bound": board.lower_bound,
+                    "depth": board.depth,
+                    "board": board,
+                },
+            )
+        )
+        self.num_elements += 1
+
+    def get(self, key):
+        index = self.hash_index(key)
+
+        for k, v in self.t_table[index]:
+            if k == key:
+                return v
+        return {"depth": -1}
+
+    def _resize(self):
+        new_size = self.size * 2
+        new_table = [[] for _ in range(new_size)]
+        for bucket in self.t_table:
+            for key, value in bucket:
+                new_index = hash(key) % new_size
+                new_table[new_index].append((key, value))
+        self.table = new_table
+        self.size = new_size
 
     def alpha_beta_Negamax(self, board: Board, depth, alpha, beta):
+        old_alpha = alpha
+        zobrist_key = board.zobrist
+        ttEntry = self.get(zobrist_key)
+
+        if ttEntry and ttEntry["depth"] >= depth:
+            if ttEntry["flag"] == "EXACT":
+                return ttEntry["score"], ttEntry["board"]
+            elif ttEntry["flag"] == "LOWER_BOUND":
+                alpha = max(alpha, ttEntry["score"])
+                board.lower_bound = alpha
+            elif ttEntry["flag"] == "UPPER_BOUND":
+                beta = min(beta, ttEntry["score"])
+                board.upper_bound = beta
+
+            if alpha >= beta:
+                return ttEntry["score"], board
 
         if depth == 0:
             board.utility_function()
-            return (
-                board.utility,
-                board,
-            )
+            board.score = board.utility
+            return board.score, board
 
         score = -math.inf
         best_board = None
         boards = self.next_moves(board)
 
         for b in boards:
-            # print(b.board, "board", b.utility_function())
-
             value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
-
             value = -value
+
             if value > score:
-
                 score = value
-
-                best_board = copy.deepcopy(b)
-
+                best_board = copy.deepcopy(b)  # Copia della board con la mossa migliore
+                best_board.score = value
+                best_board.upper_bound = alpha
+                best_board.lower_bound = beta
+                best_board.depth = depth
             alpha = max(alpha, score)
 
             if alpha >= beta:
                 break
 
-        return (
-            score,
-            best_board,
-        )
+        # Imposta i flag della board
+        if score <= old_alpha:
+            board.flag = "UPPER_BOUND"
+        elif score >= beta:
+            board.flag = "LOWER_BOUND"
+        else:
+            board.flag = "EXACT"
+
+        # Inserisci nella tabella di trasposizione la board originale
+
+        board.best_move = best_board
+        self.insert(board)
+
+        return score, best_board
 
     def move_pieces(self, b: Board, i, j):
         for piece in b.pieces:
@@ -374,6 +484,7 @@ class eNegaMax:
                         new_board_obj = self.move_pieces(
                             new_board_obj, move[0], move[1]
                         )
+
                         new_board_obj.turn = 1 if board.turn == 2 else 2
 
                         boards.append(new_board_obj)

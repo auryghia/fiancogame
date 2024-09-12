@@ -17,8 +17,11 @@ pygame.display.set_caption("Scacchiera 9x9")
 background_color = (255, 255, 255)
 
 board_obj = Board(turn=1, team=1)
+
 env = PygameEnviroment(board_obj)
 env.board_obj.create_boards()
+env.board_obj.number_creation()
+
 engine = eNegaMax()
 # initialize the board
 # initialize the enviroment
@@ -42,22 +45,16 @@ while running:
             if event.key == pygame.K_k:
                 env.board_obj.turn = 1 if env.board_obj.turn == 2 else 2
                 print("redu")
-                # print([(piece.i, piece.j) for piece in env.board_obj.pieces])
-                # print([(piece.i, piece.j) for piece in env.board_obj.old_pieces])
 
                 pieces = copy.deepcopy(env.board_obj.pieces)
                 env.board_obj.pieces = copy.deepcopy(env.board_obj.old_pieces)
                 env.board_obj.old_pieces = pieces
-                # print([(piece.i, piece.j) for piece in env.board_obj.pieces])
-                # print([(piece.i, piece.j) for piece in env.board_obj.old_pieces])
 
                 env.board_obj.change_board()
-                time.sleep(0.5)
 
             if event.key == pygame.K_n:
                 if env.board_obj.turn == env.board_obj.team:
-                    # se è il turno del giocatore automatico
-                    # print(env.board_obj.board)
+
                     old_pieces = copy.deepcopy(env.board_obj.pieces)
 
                     best_score, best_move = engine.alpha_beta_Negamax(
