@@ -56,31 +56,25 @@ class Piece:
 
         if self.i - 2 >= 0:
             if (
-                self.j - 2 >= 0  # Verifica che la colonna non sia fuori dai limiti
-                and board[self.i - 1][self.j - 1]
-                == self.opp_team  # La squadra avversaria è nella posizione intermedia
-                and board[self.i - 2][self.j - 2]
-                == 0  # La posizione di destinazione è vuota
+                self.j - 2 >= 0
+                and board[self.i - 1][self.j - 1] == self.opp_team
+                and board[self.i - 2][self.j - 2] == 0
             ):
-                # Assicurati di disabilitare le mosse non valide
+
                 self.possible_moves[(self.i - 1, self.j)] = False
                 self.possible_moves[(self.i, self.j - 1)] = False
                 self.possible_moves[(self.i, self.j + 1)] = False
-                # Imposta la mossa di cattura come valida
                 self.possible_moves[(self.i - 2, self.j - 2)] = True
 
             if (
-                self.j + 2 <= 8  # Verifica che la colonna non sia fuori dai limiti
-                and board[self.i - 1][self.j + 1]
-                == self.opp_team  # La squadra avversaria è nella posizione intermedia
-                and board[self.i - 2][self.j + 2]
-                == 0  # La posizione di destinazione è vuota
+                self.j + 2 <= 8
+                and board[self.i - 1][self.j + 1] == self.opp_team
+                and board[self.i - 2][self.j + 2] == 0
             ):
-                # Assicurati di disabilitare le mosse non valide
+
                 self.possible_moves[(self.i - 1, self.j)] = False
                 self.possible_moves[(self.i, self.j - 1)] = False
                 self.possible_moves[(self.i, self.j + 1)] = False
-                # Imposta la mossa di cattura come valida
                 self.possible_moves[(self.i - 2, self.j + 2)] = True
 
         if self.i - 1 == 0 and board[self.i - 1][self.j] == 0:
@@ -101,28 +95,20 @@ class Piece:
             (self.i + 2, self.j - 2): False,
             (self.i + 1, self.j): False,
         }
-        # Reset delle mosse possibili
 
-        # Controllo dei movimenti di base
         if self.i + 1 <= 8:
-            # Movimento verso il basso
             if board[self.i + 1][self.j] == 0:
 
                 self.possible_moves[(self.i + 1, self.j)] = True
 
-            # Movimento verso sinistra
             if self.j - 1 >= 0 and board[self.i][self.j - 1] == 0:
 
                 self.possible_moves[(self.i, self.j - 1)] = True
 
-            # Movimento verso destra
             if self.j + 1 <= 8 and board[self.i][self.j + 1] == 0:
                 self.possible_moves[(self.i, self.j + 1)] = True
 
-        # Controllo delle catture obbligatorie
-
         if self.i + 2 <= 8:
-            # Salto diagonale a sinistra
             if (
                 self.j - 2 >= 0
                 and board[self.i + 1][self.j - 1] == self.opp_team
@@ -133,7 +119,6 @@ class Piece:
                 self.possible_moves[(self.i, self.j + 1)] = False
                 self.possible_moves[(self.i + 2, self.j - 2)] = True
 
-            # Salto diagonale a destra
             if (
                 self.j + 2 <= 8
                 and board[self.i + 1][self.j + 1] == self.opp_team
@@ -179,17 +164,18 @@ class Board:
 
     def number_creation(
         self,
-    ):  # creazione di tutte le possibili chiavi zobrist per possibile tavola
-
+    ):  # creation of all the possible random numbers for the zobrist hash
         for piece in self.pieces:
             for i in range(9):
                 for j in range(9):
 
-                    self.dictionary[(piece.id, i, j)] = random.randint(0, 2**32 - 1)
+                    self.dictionary[(piece.id, i, j)] = random.randint(
+                        0, 2**32 - 1
+                    )  # controlla che questo numero sia abbastanza grande e che tutti i numeri siano effettivamente diversi
 
     def create_boards(
         self,
-    ):
+    ):  # initialize the board with the pieces and creation of the pieces
         l = 1
         number = 1
         for i in range(4):
@@ -236,16 +222,15 @@ class Board:
                 self.pieces.append(piece)
                 l -= 1
 
-    def change_board(self):
+    def change_board(self):  # change the board with the new pieces
         self.board = np.zeros((9, 9), dtype=int)
         for piece in self.pieces:
             self.board[piece.i, piece.j] = piece.team
 
     def utility_function(
         self,
-    ):
-        utility = 0
-        if self.turn == self.team:  # se é il mio turno
+    ):  # utility function for the board
+        if self.turn == self.team:  # if it's the turn of the player down
             num_opponent_pieces = 0
             num_pieces = 0
             position_score = 0
@@ -260,7 +245,7 @@ class Board:
 
                     self.utility = position_score - num_opponent_pieces + num_pieces
 
-        else:  # if it's the opponent's turn
+        else:  # if it's the turn of the player up
             num_opponent_pieces = 0
             num_pieces = 0
             position_score = 0
@@ -275,7 +260,7 @@ class Board:
                     self.utility = position_score - num_opponent_pieces + num_pieces
 
 
-class eNegaMax:
+class Engine:  # class for the engine
     def __init__(self) -> None:
         self.proof = 3
         self.dictionary = {}
@@ -283,8 +268,6 @@ class eNegaMax:
         self.size = 4000
         self.t_table = [[] for _ in range(self.size)]
         self.num_elements = 0
-
-    # Usa int invece di float
 
     def zobrist_hash(self, board: Board):
         zobrist_value = 0
@@ -368,25 +351,23 @@ class eNegaMax:
 
             if value > score:
                 score = value
-                best_board = copy.deepcopy(b)  # Copia della board con la mossa migliore
+                best_board = copy.deepcopy(b)
                 best_board.score = value
                 best_board.upper_bound = alpha
                 best_board.lower_bound = beta
                 best_board.depth = depth
+
             alpha = max(alpha, score)
 
             if alpha >= beta:
                 break
 
-        # Imposta i flag della board
         if score <= old_alpha:
             board.flag = "UPPER_BOUND"
         elif score >= beta:
             board.flag = "LOWER_BOUND"
         else:
             board.flag = "EXACT"
-
-        # Inserisci nella tabella di trasposizione la board originale
 
         board.best_move = best_board
         self.insert(board)
@@ -494,7 +475,7 @@ class eNegaMax:
         return boards
 
 
-class PygameEnviroment:
+class PygameEnviroment:  # class for the pygame enviroment
     def __init__(
         self,
         board_obj: Board,

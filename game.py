@@ -3,7 +3,7 @@ import sys
 import random
 import time
 import numpy as np
-from states import Piece, Board, PygameEnviroment, eNegaMax
+from states import Board, PygameEnviroment, Engine
 import copy
 
 pygame.init()
@@ -22,12 +22,10 @@ env = PygameEnviroment(board_obj)
 env.board_obj.create_boards()
 env.board_obj.number_creation()
 
-engine = eNegaMax()
-# initialize the board
-# initialize the enviroment
+engine = Engine()
 
 
-# Ciclo principale
+
 running = True
 click_time = 0
 while running:
@@ -129,7 +127,6 @@ while running:
 
                 if env.board_obj.turn != env.board_obj.team:
 
-                    # Gestione del turno del giocatore manuale
                     if event.type == pygame.MOUSEBUTTONDOWN:
                         mouse_x, mouse_y = event.pos
                         col = mouse_x // cell_size
@@ -162,8 +159,7 @@ while running:
                                     if 0 <= row < grid_size and 0 <= col < grid_size:
                                         old_pieces = copy.deepcopy(
                                             env.board_obj.pieces
-                                        )  # i vecchi pezzi sono una copia di quello fatto prima
-
+                                        )  
                                         env.board_obj = engine.move_pieces(
                                             env.board_obj, row, col
                                         )
