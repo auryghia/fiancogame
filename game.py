@@ -25,7 +25,6 @@ env.board_obj.number_creation()
 engine = Engine()
 
 
-
 running = True
 click_time = 0
 while running:
@@ -56,10 +55,11 @@ while running:
                     old_pieces = copy.deepcopy(env.board_obj.pieces)
 
                     best_score, best_move = engine.alpha_beta_Negamax(
-                        env.board_obj, 3, -np.inf, np.inf
+                        env.board_obj, 3, -250, 250
                     )
                     best_move.old_pieces = old_pieces
                     env.board_obj = copy.deepcopy(best_move)
+                    # engine.t_table = [[] for _ in range(engine.size)]
 
         else:
             if env.player1 == "manually" and env.player2 == "manually":
@@ -138,7 +138,7 @@ while running:
                                         for p in env.board_obj.pieces:
                                             p.is_selected = False
                                         piece.is_selected = True
-                                        env.board_obj = engine.handle_capture(
+                                        env.board_obj, _ = engine.handle_capture(
                                             env.board_obj
                                         )
                                     else:
@@ -157,9 +157,7 @@ while running:
                                     (row, col)
                                 ]:
                                     if 0 <= row < grid_size and 0 <= col < grid_size:
-                                        old_pieces = copy.deepcopy(
-                                            env.board_obj.pieces
-                                        )  
+                                        old_pieces = copy.deepcopy(env.board_obj.pieces)
                                         env.board_obj = engine.move_pieces(
                                             env.board_obj, row, col
                                         )

@@ -19,29 +19,27 @@ class Piece:
         self.is_king = False
         self.is_selected = False
         self.possible_moves = {
-            (self.i - 2, self.j - 2): False,
+            (self.i - 1, self.j): False,
             (self.i - 2, self.j + 2): False,
+            (self.i - 2, self.j - 2): False,
             (self.i, self.j - 1): False,
             (self.i, self.j + 1): False,
-            (self.i - 1, self.j): False,
-            (self.i + 2, self.j + 2): False,
-            (self.i + 2, self.j - 2): False,
             (self.i + 1, self.j): False,
+            (self.i + 2, self.j - 2): False,
+            (self.i + 2, self.j + 2): False,
         }
 
     def possible_moves_up(self, board):
-        # Reset delle mosse possibili
 
-        # Controllo dei movimenti di base
         self.possible_moves = {
-            (self.i - 2, self.j - 2): False,
+            (self.i - 1, self.j): False,
             (self.i - 2, self.j + 2): False,
+            (self.i - 2, self.j - 2): False,
             (self.i, self.j - 1): False,
             (self.i, self.j + 1): False,
-            (self.i - 1, self.j): False,
-            (self.i + 2, self.j + 2): False,
-            (self.i + 2, self.j - 2): False,
             (self.i + 1, self.j): False,
+            (self.i + 2, self.j - 2): False,
+            (self.i + 2, self.j + 2): False,
         }
         if self.i - 1 >= 0:
 
@@ -86,14 +84,14 @@ class Piece:
 
     def possible_moves_down(self, board):
         self.possible_moves = {
-            (self.i - 2, self.j - 2): False,
-            (self.i - 2, self.j + 2): False,
+            (self.i + 1, self.j): False,
+            (self.i + 2, self.j - 2): False,
+            (self.i + 2, self.j + 2): False,
             (self.i, self.j - 1): False,
             (self.i, self.j + 1): False,
             (self.i - 1, self.j): False,
-            (self.i + 2, self.j + 2): False,
-            (self.i + 2, self.j - 2): False,
-            (self.i + 1, self.j): False,
+            (self.i - 2, self.j + 2): False,
+            (self.i - 2, self.j - 2): False,
         }
 
         if self.i + 1 <= 8:
@@ -229,7 +227,8 @@ class Board:
 
     def utility_function(
         self,
-    ):  # utility function for the board
+    ):
+        # utility function for the board
         if self.turn == self.team:  # if it's the turn of the player down
             num_opponent_pieces = 0
             num_pieces = 0
@@ -243,7 +242,9 @@ class Board:
                     num_pieces += 1
                     position_score -= 8 - piece.i
 
-                    self.utility = position_score - num_opponent_pieces + num_pieces
+                    self.utility = (
+                        position_score * 10 - (num_opponent_pieces + num_pieces) * 2
+                    )
 
         else:  # if it's the turn of the player up
             num_opponent_pieces = 0
@@ -257,7 +258,9 @@ class Board:
                 else:
                     num_pieces += 1
                     position_score += piece.i
-                    self.utility = position_score - num_opponent_pieces + num_pieces
+                    self.utility = (
+                        position_score * 10 - (num_opponent_pieces + num_pieces) * 2
+                    )
 
 
 class Engine:  # class for the engine
@@ -266,7 +269,17 @@ class Engine:  # class for the engine
         self.dictionary = {}
         self.zobrist_keys = []
         self.size = 4000
-        self.t_table = [[] for _ in range(self.size)]
+        dtype = np.dtype(
+            [
+                ("score", np.float64),
+                ("flag", "U10"),
+                ("upper_bound", np.float64),
+                ("lower_bound", np.float64),
+                ("depth", np.int32),
+            ]
+        )
+        self.t_table = np.zeros(self.size, dtype=dtype)
+
         self.num_elements = 0
 
     def zobrist_hash(self, board: Board):
@@ -285,28 +298,21 @@ class Engine:  # class for the engine
             self._resize()
         board.zobrist = self.zobrist_hash(board)
         index = self.hash_index(board.zobrist)
-        self.t_table[index].append(
-            (
-                board.zobrist,
-                {
-                    "score": board.score,
-                    "flag": board.flag,
-                    "upper_bound": board.upper_bound,
-                    "lower_bound": board.lower_bound,
-                    "depth": board.depth,
-                    "board": board,
-                },
-            )
+        self.t_table[index] = (
+            board.score,
+            board.flag,
+            board.upper_bound,
+            board.lower_bound,
+            board.depth,
         )
         self.num_elements += 1
 
     def get(self, key):
         index = self.hash_index(key)
-
-        for k, v in self.t_table[index]:
-            if k == key:
-                return v
-        return {"depth": -1}
+        entry = self.t_table[index]
+        if entry["depth"] == -1:
+            return {"depth": -1}
+        return entry
 
     def _resize(self):
         new_size = self.size * 2
@@ -320,16 +326,21 @@ class Engine:  # class for the engine
 
     def alpha_beta_Negamax(self, board: Board, depth, alpha, beta):
         old_alpha = alpha
+        board.zobrist = self.zobrist_hash(board)
         zobrist_key = board.zobrist
         ttEntry = self.get(zobrist_key)
 
-        if ttEntry and ttEntry["depth"] >= depth:
+        if ttEntry != {"depth": -1} and ttEntry["depth"] >= depth:
+
             if ttEntry["flag"] == "EXACT":
-                return ttEntry["score"], ttEntry["board"]
+                print("exact")
+                return ttEntry["score"], board
             elif ttEntry["flag"] == "LOWER_BOUND":
+                print("lower")
                 alpha = max(alpha, ttEntry["score"])
                 board.lower_bound = alpha
             elif ttEntry["flag"] == "UPPER_BOUND":
+                print("upper")
                 beta = min(beta, ttEntry["score"])
                 board.upper_bound = beta
 
@@ -345,21 +356,18 @@ class Engine:  # class for the engine
         best_board = None
         boards = self.next_moves(board)
 
-        for b in boards:
+        for b, capture in boards:
             value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
+
             value = -value
 
             if value > score:
                 score = value
-                best_board = copy.deepcopy(b)
-                best_board.score = value
-                best_board.upper_bound = alpha
-                best_board.lower_bound = beta
-                best_board.depth = depth
-
+                board.best_move = b
             alpha = max(alpha, score)
 
             if alpha >= beta:
+
                 break
 
         if score <= old_alpha:
@@ -369,10 +377,13 @@ class Engine:  # class for the engine
         else:
             board.flag = "EXACT"
 
-        board.best_move = best_board
+        board.score = score
+        board.upper_bound = alpha
+        board.lower_bound = beta
+        board.depth = depth
         self.insert(board)
 
-        return score, best_board
+        return score, board.best_move
 
     def move_pieces(self, b: Board, i, j):
         for piece in b.pieces:
@@ -436,27 +447,27 @@ class Engine:  # class for the engine
                     capture_available = True
             if capture_available:
                 for p in board.pieces:
-                    if p.team == board.team:
-                        p.possible_moves_up(board.board)
-                    else:
-                        p.possible_moves_down(board.board)
+                    if p.team == board.turn:
+                        if p.team == board.team:
+                            p.possible_moves_up(board.board)
+                        else:
+                            p.possible_moves_down(board.board)
 
-                    for move in p.possible_moves:
-                        if abs(move[0] - p.i) != 2 or abs(move[1] - p.j) != 2:
-                            p.possible_moves[move] = False
+                        for move in p.possible_moves:
+                            if abs(move[0] - p.i) != 2 or abs(move[1] - p.j) != 2:
+                                p.possible_moves[move] = False
 
-        return board
+        return board, capture_available
 
     def next_moves(self, board: Board):
         boards = []
+        board, capture = self.handle_capture(board)
 
         for piece in board.pieces:
 
             piece.is_selected = True
 
             if piece.team == board.turn:
-
-                board = self.handle_capture(board)
 
                 for move in piece.possible_moves:
                     if piece.possible_moves[move] == True:
@@ -465,10 +476,8 @@ class Engine:  # class for the engine
                         new_board_obj = self.move_pieces(
                             new_board_obj, move[0], move[1]
                         )
-
                         new_board_obj.turn = 1 if board.turn == 2 else 2
-
-                        boards.append(new_board_obj)
+                        boards.append((new_board_obj, capture))
 
             piece.is_selected = False
 
