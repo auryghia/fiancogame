@@ -1,7 +1,7 @@
-from states import Board, Piece
-from typing import List
+from states import Board
 import numpy as np
 import math
+import time
 import copy
 import heapq
 
@@ -42,7 +42,6 @@ class Engine:  # class for the engine
         return zobrist_value % self.size
 
     def insert(self, board: Board):
-
         if self.num_elements == self.size:
             self.change_table()
         board.zobrist = self.zobrist_hash(board)
@@ -71,7 +70,6 @@ class Engine:  # class for the engine
         return entry
 
     def change_table(self):
-
         new_table = np.zeros(self.size, dtype=self.t_table.dtype)
         all_elements = []
         for i in range(self.size):
@@ -99,6 +97,7 @@ class Engine:  # class for the engine
         board.zobrist = self.zobrist_hash(board)
         zobrist_key = board.zobrist
         ttEntry = self.get(zobrist_key)
+        # print("inizio", board.board, alpha, beta, board.turn)
 
         if ttEntry != {"depth": -1} and ttEntry["depth"] >= depth:
 
@@ -115,6 +114,8 @@ class Engine:  # class for the engine
                 return ttEntry["score"], board
 
         if depth == 0:
+
+            board, _ = self.handle_capture(board)
             board.utility_function()
             board.score = board.utility
             return board.score, board
@@ -128,13 +129,14 @@ class Engine:  # class for the engine
 
             value = -value
             if value > score:
+                # print(b.board, alpha, beta, b.turn)
                 score = value
                 board.best_move = b
 
             alpha = max(alpha, score)
 
             if alpha >= beta:
-
+                # print(b.board, alpha, beta, b.turn)
                 break
 
         if score <= old_alpha:
@@ -185,9 +187,9 @@ class Engine:  # class for the engine
         for piece in board.pieces:
             if piece.team == board.turn:
                 if piece.team == board.team:
-                    piece.possible_moves_up(board.board)
+                    piece.possible_moves_f(board.board, -1)
                 else:
-                    piece.possible_moves_down(board.board)
+                    piece.possible_moves_f(board.board, +1)
 
                 if (
                     (
@@ -215,10 +217,6 @@ class Engine:  # class for the engine
             if capture_available:
                 for p in board.pieces:
                     if p.team == board.turn:
-                        if p.team == board.team:
-                            p.possible_moves_up(board.board)
-                        else:
-                            p.possible_moves_down(board.board)
 
                         for move in p.possible_moves:
                             if abs(move[0] - p.i) != 2 or abs(move[1] - p.j) != 2:
@@ -230,22 +228,40 @@ class Engine:  # class for the engine
         boards = []
         board, capture = self.handle_capture(board)
         turn = board.turn
-
         for piece in board.pieces:
 
             piece.is_selected = True
-
             if piece.team == board.turn:
                 for move in piece.possible_moves:
                     if piece.possible_moves[move] == True:
 
-                        new_board_obj = copy.deepcopy(board)
+                        new_board_obj = Board(team=turn)
+                        new_board_obj.pieces = copy.deepcopy(board.pieces)
+                        new_board_obj.change_board()
+                        new_board_obj.dictionary = board.dictionary
                         new_board_obj = self.move_pieces(
                             new_board_obj, move[0], move[1]
                         )
+
                         new_board_obj.turn = 1 if board.turn == 2 else 2
                         boards.append((new_board_obj, capture))
 
             piece.is_selected = False
 
         return boards
+
+    def think(self, board: Board, depth, alpha, beta):
+
+        old_pieces = copy.deepcopy(board.pieces)
+        start_time = time.time()
+
+        best_score, best_move = self.alpha_beta_Negamax(board, depth, alpha, beta)
+        best_move.old_pieces = old_pieces
+        board = copy.deepcopy(best_move)
+        if self.reset_table:
+            self.clear_table()
+        elapsed_time = time.time() - start_time
+
+        print(f"Tempo impiegato da alpha_beta_Negamax: {elapsed_time:.4f} secondi")
+
+        return board

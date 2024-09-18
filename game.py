@@ -1,34 +1,27 @@
 import pygame
-import sys
-import random
 import time
-import numpy as np
+from pygame.locals import *
 from states import Board, PygameEnviroment
 from engine import Engine
+from parameters import *
 import copy
 
 pygame.init()
-
-screen_size = (900, 720)
-grid_size = 720
-cell_size = grid_size // 9
-screen = pygame.display.set_mode((screen_size[0], screen_size[1]))
-pygame.display.set_caption("9x9 Board, Fianco Game")
-
-background_color = (255, 255, 255)
-board_obj = Board(turn=1, team=1)
+pygame.display.set_caption(GAME_TITLE)
+screen = pygame.display.set_mode(GAME_RES, pygame.HWSURFACE | pygame.DOUBLEBUF)
+board_obj = Board(turn=TURN, team=TEAM, players=PLAYERS)
 env = PygameEnviroment(board_obj)
 env.board_obj.create_boards()
 env.board_obj.number_creation()
-engine = Engine(size=100)
+engine = Engine(size=SIZE, reset_table=RESET_TABLE, percentage=PERCENTAGE)
 
 
 running = True
 click_time = 0
 while running:
 
-    screen.fill(background_color)
-    env.show(screen, screen_size, grid_size, cell_size)
+    screen.fill(SCREEN_COLOUR)
+    env.show(screen, GAME_RES, GRID_SIZE, CELL_SIZE)
     pygame.display.flip()
 
     for event in pygame.event.get():
@@ -38,27 +31,29 @@ while running:
 
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_k:
-                env.board_obj.turn = 1 if env.board_obj.turn == 2 else 2
-                print("redu")
-                pieces = copy.deepcopy(env.board_obj.pieces)
-                env.board_obj.pieces = copy.deepcopy(env.board_obj.old_pieces)
-                env.board_obj.old_pieces = pieces
-                env.board_obj.change_board()
+                # undo move
+                env.board_obj.undo_move()
+
+            if event.key == pygame.K_r:
+                # reset game
+                env.board_obj = Board(turn=TURN, team=TEAM, players=PLAYERS)
+                env.board_obj.create_boards()
+                env.board_obj.number_creation()
 
             # automatic player
             if event.key == pygame.K_n:
                 if env.board_obj.players[env.board_obj.turn] == "automatic":
                     if env.board_obj.turn == env.board_obj.team:
 
-                        old_pieces = copy.deepcopy(env.board_obj.pieces)
+                        env.board_obj = engine.think(env.board_obj, DEPTH, MIN, MAX)
 
-                        best_score, best_move = engine.alpha_beta_Negamax(
-                            env.board_obj, 3, -250, 250
-                        )
-                        best_move.old_pieces = old_pieces
-                        env.board_obj = copy.deepcopy(best_move)
-                    if engine.reset_table:
-                        engine.clear_table()
+            elif event.key == K_UP:
+                DEPTH += 1
+                print(f"New Depth level: {DEPTH}")
+
+            elif event.key == K_DOWN:
+                DEPTH -= 1
+                print(f"New Depth Level: {DEPTH}")
 
         else:
             # Manual player
@@ -66,8 +61,8 @@ while running:
 
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mouse_x, mouse_y = event.pos
-                    col = mouse_x // cell_size
-                    row = mouse_y // cell_size
+                    col = mouse_x // CELL_SIZE
+                    row = mouse_y // CELL_SIZE
                     for piece in env.board_obj.pieces:
                         if piece.team == env.board_obj.turn:
                             if piece.i == row and piece.j == col:
@@ -83,8 +78,8 @@ while running:
 
                 elif event.type == pygame.MOUSEBUTTONUP:
                     mouse_x, mouse_y = event.pos
-                    col = mouse_x // cell_size
-                    row = mouse_y // cell_size
+                    col = mouse_x // CELL_SIZE
+                    row = mouse_y // CELL_SIZE
                     for piece in env.board_obj.pieces:
                         if piece.is_selected and piece.team == env.board_obj.turn:
                             if (
@@ -93,7 +88,7 @@ while running:
                             ) in piece.possible_moves and piece.possible_moves[
                                 (row, col)
                             ]:
-                                if 0 <= row < grid_size and 0 <= col < grid_size:
+                                if 0 <= row < GRID_SIZE and 0 <= col < GRID_SIZE:
                                     old_pieces = copy.deepcopy(env.board_obj.pieces)
                                     env.board_obj = engine.move_pieces(
                                         env.board_obj, row, col
