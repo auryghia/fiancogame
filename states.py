@@ -202,17 +202,12 @@ class Board:
             if piece.team == self.team:
                 num_pieces += 1
                 position_score += piece.i if self.turn != self.team else -8 + piece.i
-                if piece.i < len(self.board) // 2:
-                    advanced_count += 1
 
-                if piece.i >= len(self.board) // 2:
-                    advanced_count += 1
             else:
                 num_opponent_pieces += 1
 
         self.utility = position_score * progress_weight
         self.utility -= (num_opponent_pieces + num_pieces) * pieces_weight
-        self.utility += advanced_count * advanced_position_weight
 
     def undo_move(self):
         self.turn = 1 if self.turn == 2 else 2
