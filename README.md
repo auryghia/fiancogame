@@ -1,5 +1,6 @@
 
-**Intelligent Player for "Fianco" using Alpha-Beta Pruning and Negamax**
+****Intelligent Player for "Fianco" using Alpha-Beta Pruning and Negamax****
+
 This project implements an intelligent player for the Italian game "Fianco" using the Alpha-Beta Pruning algorithm with Negamax notation. The implementation leverages Pygame for visualizing the game and Zobrist hashing for efficient board state evaluation. The goal of this project is to participate in the Intelligence and Search Games competition at Maastricht University.
 
 **Features**
