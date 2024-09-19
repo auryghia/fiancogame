@@ -29,6 +29,7 @@ class Engine:  # class for the engine
         self.t_table = np.zeros(self.size, dtype=dtype)
         self.percentage = percentage
         self.num_elements = 0
+        self.important_moves = set()
 
     def zobrist_hash(self, board: Board):
         zobrist_value = 0
@@ -44,7 +45,7 @@ class Engine:  # class for the engine
     def insert(self, board: Board):
         if self.num_elements == self.size:
             self.change_table()
-        board.zobrist = self.zobrist_hash(board)
+        # board.zobrist = self.zobrist_hash(board)
         index = self.hash_index(board.zobrist)
         self.t_table[index] = np.array(
             [
@@ -94,7 +95,7 @@ class Engine:  # class for the engine
 
     def alpha_beta_Negamax(self, board: Board, depth, alpha, beta):
         old_alpha = alpha
-        board.zobrist = self.zobrist_hash(board)
+        # board.zobrist = self.zobrist_hash(board)
         zobrist_key = board.zobrist
         ttEntry = self.get(zobrist_key)
         # print("inizio", board.board, alpha, beta, board.turn)
@@ -137,6 +138,8 @@ class Engine:  # class for the engine
 
             if alpha >= beta:
                 # print(b.board, alpha, beta, b.turn)
+
+                self.important_moves.add(b.zobrist)
                 break
 
         if score <= old_alpha:
@@ -228,6 +231,7 @@ class Engine:  # class for the engine
         boards = []
         board, capture = self.handle_capture(board)
         turn = board.turn
+        imp_boards = []
         for piece in board.pieces:
 
             piece.is_selected = True
@@ -242,19 +246,25 @@ class Engine:  # class for the engine
                         new_board_obj = self.move_pieces(
                             new_board_obj, move[0], move[1]
                         )
-
+                        new_board_obj.zobrist = self.zobrist_hash(new_board_obj)
                         new_board_obj.turn = 1 if board.turn == 2 else 2
-                        boards.append((new_board_obj, capture))
+
+                        if new_board_obj.zobrist in self.important_moves:
+                            imp_boards.append((new_board_obj, capture))
+
+                        else:
+
+                            boards.append((new_board_obj, capture))
 
             piece.is_selected = False
 
-        return boards
+        return imp_boards + boards
 
     def think(self, board: Board, depth, alpha, beta):
 
         old_pieces = copy.deepcopy(board.pieces)
         start_time = time.time()
-
+        board.zobrist = self.zobrist_hash(board)
         best_score, best_move = self.alpha_beta_Negamax(board, depth, alpha, beta)
         best_move.old_pieces = old_pieces
         board = copy.deepcopy(best_move)

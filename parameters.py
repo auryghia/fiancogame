@@ -7,9 +7,9 @@ GRID_SIZE = 720
 CELL_SIZE = GRID_SIZE // 9
 
 
-SIZE = 100
+SIZE = 4000
 PERCENTAGE = 0.75
-DEPTH = 5
+DEPTH = 3
 MIN = -math.inf
 MAX = math.inf
 RESET_TABLE = True
