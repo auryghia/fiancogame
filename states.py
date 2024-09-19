@@ -103,6 +103,7 @@ class Board:
         self.players = players
         self.score = -math.inf
         self.best_move = None
+        self.best_board = None
         self.dictionary = {}
         self.utility = 0
         self.zobrist = 0

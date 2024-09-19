@@ -23,7 +23,7 @@ class Engine:  # class for the engine
                 ("upper_bound", np.float64),
                 ("lower_bound", np.float64),
                 ("depth", np.int32),
-                ("pieces", object),
+                ("move", object),
             ]
         )
         self.t_table = np.zeros(self.size, dtype=dtype)
@@ -56,7 +56,7 @@ class Engine:  # class for the engine
     def hash_index(self, zobrist_value):
         return zobrist_value % self.size
 
-    def insert(self, board: Board, best_board: Board):
+    def insert(self, board: Board, best_move: Board):
         if self.num_elements == self.size:
             self.change_table()
         # board.zobrist = self.zobrist_hash(board)
@@ -70,7 +70,7 @@ class Engine:  # class for the engine
                     board.upper_bound,
                     board.lower_bound,
                     board.depth,
-                    copy.deepcopy(best_board.pieces),
+                    (copy.deepcopy(board.best_move[0]), board.best_move[1]),
                 )
             ],
             dtype=self.t_table.dtype,
@@ -110,24 +110,15 @@ class Engine:  # class for the engine
 
     def alpha_beta_Negamax(self, board: Board, depth, alpha, beta):
         old_alpha = alpha
-        # board.zobrist = self.zobrist_hash(board)
         zobrist_key = board.zobrist
         ttEntry = self.get(zobrist_key)
-        # print("inizio", board.board, alpha, beta, board.turn)
 
         if ttEntry != {"depth": -1} and ttEntry["depth"] >= depth:
 
             if ttEntry["flag"] == "EXACT":
-
-                new_board = Board(team=board.turn)
-                new_board.pieces = copy.deepcopy(ttEntry["pieces"])
-                new_board.change_board()
-                new_board.dictionary = board.dictionary
-                new_board.zobrist = self.zobrist_hash(new_board)
-                new_board.turn = 1 if board.turn == 2 else 2
-
-                # print("exact", board.board, new_board.board)
+                new_board = self.create_new_board(board, ttEntry)
                 return ttEntry["score"], new_board
+
             elif ttEntry["flag"] == "LOWER_BOUND":
                 alpha = max(alpha, ttEntry["score"])
                 board.lower_bound = alpha
@@ -146,7 +137,6 @@ class Engine:  # class for the engine
             return board.score, board
 
         score = -math.inf
-        best_board = None
         boards = self.next_moves(board)
         for b, piece, move in boards:
 
@@ -154,14 +144,13 @@ class Engine:  # class for the engine
 
             value = -value
             if value > score:
-                # print(b.board, alpha, beta, b.turn)
                 score = value
-                board.best_move = b
+                board.best_board = b
+                board.best_move = (piece, move)
 
             alpha = max(alpha, score)
 
             if alpha >= beta:
-                # print(b.board, alpha, beta, b.turn)
                 if (board.zobrist, b.zobrist) not in self.important_moves:
                     self.add_move((board.zobrist, b.zobrist))
 
@@ -183,7 +172,26 @@ class Engine:  # class for the engine
         board.depth = depth
         self.insert(board, board.best_move)
 
-        return score, board.best_move
+        return score, board.best_board
+
+    def create_new_board(self, board: Board, ttEntry):
+
+        new_board = Board(team=board.turn)
+        new_board.pieces = copy.deepcopy(board.pieces)
+        new_board.change_board()
+        for piece in new_board.pieces:
+            piece_to_move = ttEntry["move"][0]
+            if piece.id == piece_to_move.id:
+                piece.is_selected = True
+                new_board = self.move_pieces(
+                    new_board, ttEntry["move"][1][0], ttEntry["move"][1][1]
+                )
+                piece.is_selected = False
+        new_board.dictionary = board.dictionary
+        new_board.zobrist = self.zobrist_hash(new_board)
+        new_board.turn = 1 if board.turn == 2 else 2
+
+        return new_board
 
     def move_pieces(self, b: Board, i, j):
         for piece in b.pieces:
@@ -303,9 +311,10 @@ class Engine:  # class for the engine
         old_pieces = copy.deepcopy(board.pieces)
         start_time = time.time()
         board.zobrist = self.zobrist_hash(board)
-        best_score, best_move = self.alpha_beta_Negamax(board, depth, alpha, beta)
-        best_move.old_pieces = old_pieces
-        board = copy.deepcopy(best_move)
+        _, best_board = self.alpha_beta_Negamax(board, depth, alpha, beta)
+        best_board.old_pieces = old_pieces
+        board = copy.deepcopy(best_board)
+
         if self.reset_table:
             self.clear_table()
         elapsed_time = time.time() - start_time
