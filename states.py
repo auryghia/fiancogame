@@ -104,7 +104,6 @@ class Board:
         self.score = -math.inf
         self.best_move = None
         self.best_board = None
-        self.dictionary = {}
         self.utility = 0
         self.zobrist = 0
         self.score = -math.inf
@@ -118,15 +117,6 @@ class Board:
     def order_pieces(self):
         self.pieces = sorted(self.pieces, key=lambda x: x.i, reverse=True)
     """
-
-    def number_creation(
-        self,
-    ):  # creation of all the possible random numbers for the zobrist hash
-        for piece in self.pieces:
-            for i in range(9):
-                for j in range(9):
-
-                    self.dictionary[(piece.id, i, j)] = random.randint(0, 2**32 - 1)
 
     def create_boards(
         self,

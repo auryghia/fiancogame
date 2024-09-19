@@ -11,7 +11,6 @@ screen = pygame.display.set_mode(GAME_RES, pygame.HWSURFACE | pygame.DOUBLEBUF)
 board_obj = Board(turn=TURN, team=TEAM, players=PLAYERS)
 env = PygameEnviroment(board_obj)
 env.board_obj.create_boards()
-env.board_obj.number_creation()
 engine = Engine(size=SIZE, reset_table=RESET_TABLE, p=PERCENTAGE)
 
 

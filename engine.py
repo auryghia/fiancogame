@@ -10,7 +10,6 @@ from parameters import IMP_MOVES_SIZE
 class Engine:  # class for the engine
     def __init__(self, size: int = 4000, p: float = 0.75, reset_table=True) -> None:
         self.proof = 3
-        self.dictionary = {}
         self.zobrist_keys = []
         self.size = size
         self.reset_table = reset_table
@@ -31,6 +30,9 @@ class Engine:  # class for the engine
         self.num_elements = 0
         self.important_moves = dict()
         self.max_size = IMP_MOVES_SIZE
+        self.zobrist_table = np.random.randint(
+            0, 2**63 - 1, size=(9, 9, 3), dtype=np.int64
+        )
 
     def add_move(self, move):
         if len(self.important_moves) >= self.max_size:
@@ -47,9 +49,11 @@ class Engine:  # class for the engine
 
     def zobrist_hash(self, board: Board):
         zobrist_value = 0
-
-        for piece in board.pieces:
-            zobrist_value ^= board.dictionary[(piece.id, piece.i, piece.j)]
+        for row in range(9):
+            for col in range(9):
+                if board.board[row, col] != 0:
+                    value = board.board[row, col]
+                    zobrist_value ^= self.zobrist_table[row, col, value]
 
         return zobrist_value
 
@@ -59,6 +63,7 @@ class Engine:  # class for the engine
     def insert(self, board: Board, best_move: Board):
         if self.num_elements == self.size:
             self.change_table()
+
         # board.zobrist = self.zobrist_hash(board)
         index = self.hash_index(board.zobrist)
         self.t_table[index] = np.array(
@@ -187,7 +192,6 @@ class Engine:  # class for the engine
                     new_board, ttEntry["move"][1][0], ttEntry["move"][1][1]
                 )
                 piece.is_selected = False
-        new_board.dictionary = board.dictionary
         new_board.zobrist = self.zobrist_hash(new_board)
         new_board.turn = 1 if board.turn == 2 else 2
 
@@ -278,7 +282,6 @@ class Engine:  # class for the engine
                         new_board_obj = Board(team=turn)
                         new_board_obj.pieces = copy.deepcopy(board.pieces)
                         new_board_obj.change_board()
-                        new_board_obj.dictionary = board.dictionary
                         new_board_obj = self.move_pieces(
                             new_board_obj, move[0], move[1]
                         )
