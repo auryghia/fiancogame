@@ -1,5 +1,4 @@
 import pygame
-import time
 from pygame.locals import *
 from states import Board, PygameEnviroment
 from engine import Engine

@@ -23,6 +23,7 @@ class Engine:  # class for the engine
                 ("upper_bound", np.float64),
                 ("lower_bound", np.float64),
                 ("depth", np.int32),
+                ("pieces", object),
             ]
         )
         self.t_table = np.zeros(self.size, dtype=dtype)
@@ -55,7 +56,7 @@ class Engine:  # class for the engine
     def hash_index(self, zobrist_value):
         return zobrist_value % self.size
 
-    def insert(self, board: Board):
+    def insert(self, board: Board, best_board: Board):
         if self.num_elements == self.size:
             self.change_table()
         # board.zobrist = self.zobrist_hash(board)
@@ -69,6 +70,7 @@ class Engine:  # class for the engine
                     board.upper_bound,
                     board.lower_bound,
                     board.depth,
+                    copy.deepcopy(best_board.pieces),
                 )
             ],
             dtype=self.t_table.dtype,
@@ -116,7 +118,16 @@ class Engine:  # class for the engine
         if ttEntry != {"depth": -1} and ttEntry["depth"] >= depth:
 
             if ttEntry["flag"] == "EXACT":
-                return ttEntry["score"], board
+
+                new_board = Board(team=board.turn)
+                new_board.pieces = copy.deepcopy(ttEntry["pieces"])
+                new_board.change_board()
+                new_board.dictionary = board.dictionary
+                new_board.zobrist = self.zobrist_hash(new_board)
+                new_board.turn = 1 if board.turn == 2 else 2
+
+                # print("exact", board.board, new_board.board)
+                return ttEntry["score"], new_board
             elif ttEntry["flag"] == "LOWER_BOUND":
                 alpha = max(alpha, ttEntry["score"])
                 board.lower_bound = alpha
@@ -137,7 +148,7 @@ class Engine:  # class for the engine
         score = -math.inf
         best_board = None
         boards = self.next_moves(board)
-        for b, capture in boards:
+        for b, piece, move in boards:
 
             value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
 
@@ -157,7 +168,6 @@ class Engine:  # class for the engine
                 else:
                     self.important_moves[(board.zobrist, b.zobrist)] += 1
 
-                print(self.important_moves)
                 break
 
         if score <= old_alpha:
@@ -171,7 +181,7 @@ class Engine:  # class for the engine
         board.upper_bound = alpha
         board.lower_bound = beta
         board.depth = depth
-        self.insert(board)
+        self.insert(board, board.best_move)
 
         return score, board.best_move
 
@@ -271,11 +281,11 @@ class Engine:  # class for the engine
                             board.zobrist,
                             new_board_obj.zobrist,
                         ) in self.important_moves:
-                            imp_boards.append((new_board_obj, capture))
+                            imp_boards.append((new_board_obj, piece, move))
 
                         else:
 
-                            boards.append((new_board_obj, capture))
+                            boards.append((new_board_obj, piece, move))
 
             piece.is_selected = False
             imp_boards = sorted(
