@@ -28,18 +28,20 @@ class Engine:  # class for the engine
         self.t_table = np.zeros(self.size, dtype=dtype)
         self.percentage = p
         self.num_elements = 0
-        self.important_moves = set()
+        self.important_moves = dict()
         self.max_size = IMP_MOVES_SIZE
 
-    def add_move(self, zobrist_hash):
+    def add_move(self, move):
         if len(self.important_moves) >= self.max_size:
             self.trim_important_moves()
-        self.important_moves.add(zobrist_hash)
+        self.important_moves[move] = 0
 
     def trim_important_moves(self):
-        important_moves_list = list(self.important_moves)
-        mid_index = len(important_moves_list) // 2
-        self.important_moves = set(important_moves_list[mid_index:])
+        important_moves_keys = list(self.important_moves.keys())
+        mid_index = len(important_moves_keys) // 2
+        self.important_moves = {
+            key: self.important_moves[key] for key in important_moves_keys[mid_index:]
+        }
         print("Trimming important moves")
 
     def zobrist_hash(self, board: Board):
@@ -149,7 +151,13 @@ class Engine:  # class for the engine
 
             if alpha >= beta:
                 # print(b.board, alpha, beta, b.turn)
-                self.add_move(b.zobrist)
+                if (board.zobrist, b.zobrist) not in self.important_moves:
+                    self.add_move((board.zobrist, b.zobrist))
+
+                else:
+                    self.important_moves[(board.zobrist, b.zobrist)] += 1
+
+                print(self.important_moves)
                 break
 
         if score <= old_alpha:
@@ -259,7 +267,10 @@ class Engine:  # class for the engine
                         new_board_obj.zobrist = self.zobrist_hash(new_board_obj)
                         new_board_obj.turn = 1 if board.turn == 2 else 2
 
-                        if new_board_obj.zobrist in self.important_moves:
+                        if (
+                            board.zobrist,
+                            new_board_obj.zobrist,
+                        ) in self.important_moves:
                             imp_boards.append((new_board_obj, capture))
 
                         else:
@@ -267,6 +278,13 @@ class Engine:  # class for the engine
                             boards.append((new_board_obj, capture))
 
             piece.is_selected = False
+            imp_boards = sorted(
+                imp_boards,
+                key=lambda item: self.important_moves.get(
+                    (board.zobrist, item[0].zobrist), float("-inf")
+                ),
+                reverse=True,
+            )
 
         return imp_boards + boards
 
