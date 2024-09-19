@@ -13,7 +13,7 @@ board_obj = Board(turn=TURN, team=TEAM, players=PLAYERS)
 env = PygameEnviroment(board_obj)
 env.board_obj.create_boards()
 env.board_obj.number_creation()
-engine = Engine(size=SIZE, reset_table=RESET_TABLE, percentage=PERCENTAGE)
+engine = Engine(size=SIZE, reset_table=RESET_TABLE, p=PERCENTAGE)
 
 
 running = True

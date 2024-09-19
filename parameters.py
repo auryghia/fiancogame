@@ -8,11 +8,13 @@ CELL_SIZE = GRID_SIZE // 9
 
 
 SIZE = 4000
+IMP_MOVES_SIZE = 100000
 PERCENTAGE = 0.75
 DEPTH = 3
 MIN = -math.inf
 MAX = math.inf
 RESET_TABLE = True
+
 
 TEAM = 1
 TURN = 1

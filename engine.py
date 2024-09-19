@@ -4,18 +4,17 @@ import math
 import time
 import copy
 import heapq
+from parameters import IMP_MOVES_SIZE
 
 
 class Engine:  # class for the engine
-    def __init__(
-        self, size: int = 4000, percentage: float = 0.75, reset_table=True
-    ) -> None:
+    def __init__(self, size: int = 4000, p: float = 0.75, reset_table=True) -> None:
         self.proof = 3
         self.dictionary = {}
         self.zobrist_keys = []
         self.size = size
         self.reset_table = reset_table
-        self.percentage = percentage
+        self.percentage = p
         dtype = np.dtype(
             [
                 ("zobrist", np.int64),
@@ -27,9 +26,21 @@ class Engine:  # class for the engine
             ]
         )
         self.t_table = np.zeros(self.size, dtype=dtype)
-        self.percentage = percentage
+        self.percentage = p
         self.num_elements = 0
         self.important_moves = set()
+        self.max_size = IMP_MOVES_SIZE
+
+    def add_move(self, zobrist_hash):
+        if len(self.important_moves) >= self.max_size:
+            self.trim_important_moves()
+        self.important_moves.add(zobrist_hash)
+
+    def trim_important_moves(self):
+        important_moves_list = list(self.important_moves)
+        mid_index = len(important_moves_list) // 2
+        self.important_moves = set(important_moves_list[mid_index:])
+        print("Trimming important moves")
 
     def zobrist_hash(self, board: Board):
         zobrist_value = 0
@@ -138,8 +149,7 @@ class Engine:  # class for the engine
 
             if alpha >= beta:
                 # print(b.board, alpha, beta, b.turn)
-
-                self.important_moves.add(b.zobrist)
+                self.add_move(b.zobrist)
                 break
 
         if score <= old_alpha:
