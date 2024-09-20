@@ -68,9 +68,7 @@ while running:
                                     for p in env.board_obj.pieces:
                                         p.is_selected = False
                                     piece.is_selected = True
-                                    env.board_obj, _ = engine.handle_capture(
-                                        env.board_obj
-                                    )
+                                    env.board_obj.handle_capture()
                                 else:
                                     piece.is_selected = False
 
@@ -88,9 +86,7 @@ while running:
                             ]:
                                 if 0 <= row < GRID_SIZE and 0 <= col < GRID_SIZE:
                                     old_pieces = copy.deepcopy(env.board_obj.pieces)
-                                    env.board_obj = engine.move_pieces(
-                                        env.board_obj, row, col
-                                    )
+                                    env.board_obj.move_pieces(row, col)
 
                                     env.board_obj.turn = (
                                         2 if env.board_obj.turn == 1 else 1

@@ -4,6 +4,7 @@ import math
 import time
 import copy
 import heapq
+from collections import defaultdict, OrderedDict
 from parameters import IMP_MOVES_SIZE
 
 
@@ -29,15 +30,131 @@ class Engine:  # class for the engine
         self.percentage = p
         self.num_elements = 0
         self.important_moves = dict()
+        self.killer_moves = defaultdict(lambda: OrderedDict())
         self.max_size = IMP_MOVES_SIZE
         self.zobrist_table = np.random.randint(
             0, 2**63 - 1, size=(9, 9, 3), dtype=np.int64
         )
 
+    def alpha_beta_Negamax(self, board: Board, depth, alpha, beta):
+        old_alpha = alpha
+        zobrist_key = board.zobrist
+        board.depth = depth
+
+        ttEntry = self.get(zobrist_key)
+
+        if ttEntry != {"depth": -1} and ttEntry["depth"] >= depth:
+
+            if ttEntry["flag"] == "EXACT":
+                new_board = board.create_new_board(ttEntry)
+                new_board.zobrist = self.zobrist_hash(new_board)
+
+                return ttEntry["score"], new_board
+
+            else:
+                if ttEntry["flag"] == "LOWER_BOUND":
+                    alpha = max(alpha, ttEntry["score"])
+                    board.lower_bound = alpha
+                if ttEntry["flag"] == "UPPER_BOUND":
+                    beta = min(beta, ttEntry["score"])
+                    board.upper_bound = beta
+
+                if alpha >= beta:
+
+                    return
+
+        if depth == 0:
+            board.utility_function()
+            board.score = board.utility
+            return board.score, board
+
+        score = -math.inf
+        boards = self.next_moves(board)
+        for b, piece, move in boards:
+
+            value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
+
+            value = -value
+            if value > score:
+                score = value
+                board.best_board = b
+                board.best_move = (piece, move)
+
+            alpha = max(alpha, score)
+
+            if alpha >= beta:
+                self.add_move((board.zobrist, b.zobrist))
+                self.add_killer_move(depth, (board.zobrist, b.zobrist))
+                break
+
+        if score <= old_alpha:
+            board.flag = "UPPER_BOUND"  # fail low
+        elif score >= beta:
+            board.flag = "LOWER_BOUND"  # fail high
+        else:
+            board.flag = "EXACT"
+
+        board.score = score
+        board.upper_bound = alpha
+        board.lower_bound = beta
+        self.insert(board, board.best_move)
+
+        return score, board.best_board
+
+    def next_moves(self, board: Board):
+        boards = []
+        board.handle_capture()
+        turn = board.turn
+        imp_boards = []
+        killer_moves = []
+        for piece in board.pieces:
+
+            piece.is_selected = True
+            if piece.team == board.turn:
+                for move in piece.possible_moves:
+                    if piece.possible_moves[move] == True:
+
+                        new_board_obj = Board(team=turn)
+                        new_board_obj.pieces = copy.deepcopy(board.pieces)
+                        new_board_obj.change_board()
+                        new_board_obj.move_pieces(move[0], move[1])
+                        new_board_obj.zobrist = self.zobrist_hash(new_board_obj)
+                        new_board_obj.turn = 1 if board.turn == 2 else 2
+
+                        if (
+                            board.depth in self.killer_moves
+                            and (board.zobrist, new_board_obj.zobrist)
+                            in self.killer_moves[board.depth]
+                        ):
+                            killer_moves.append((new_board_obj, piece, move))
+
+                        elif (
+                            board.zobrist,
+                            new_board_obj.zobrist,
+                        ) in self.important_moves:
+                            imp_boards.append((new_board_obj, piece, move))
+
+                        else:
+                            boards.append((new_board_obj, piece, move))
+
+            piece.is_selected = False
+            imp_boards = sorted(
+                imp_boards,
+                key=lambda item: self.important_moves.get(
+                    (board.zobrist, item[0].zobrist), float("-inf")
+                ),
+                reverse=True,
+            )
+        # print(killer_moves + imp_boards + boards)
+        return killer_moves + imp_boards + boards
+
     def add_move(self, move):
-        if len(self.important_moves) >= self.max_size:
-            self.trim_important_moves()
-        self.important_moves[move] = 0
+        if move not in self.important_moves:
+            if len(self.important_moves) >= self.max_size:
+                self.trim_important_moves()
+            self.important_moves[move] = 0  # Aggiungi la mossa se non esiste
+        else:
+            self.important_moves[move] += 1  # Incrementa il contatore se esiste già
 
     def trim_important_moves(self):
         important_moves_keys = list(self.important_moves.keys())
@@ -46,6 +163,23 @@ class Engine:  # class for the engine
             key: self.important_moves[key] for key in important_moves_keys[mid_index:]
         }
         print("Trimming important moves")
+
+    def add_killer_move(self, depth, move):
+        if depth not in self.killer_moves:
+            self.killer_moves[depth] = {}
+
+        if move in self.killer_moves[depth]:
+            self.killer_moves[depth][move] += 1
+        else:
+            self.killer_moves[depth][move] = 1
+        if len(self.killer_moves[depth]) > self.max_size:
+            self.killer_moves[depth] = OrderedDict(
+                sorted(
+                    self.killer_moves[depth].items(),
+                    key=lambda item: item[1],
+                    reverse=True,
+                )[:4]
+            )
 
     def zobrist_hash(self, board: Board):
         zobrist_value = 0
@@ -113,117 +247,7 @@ class Engine:  # class for the engine
         self.t_table = np.zeros(self.size, dtype=self.t_table.dtype)
         self.num_elements = 0
 
-    def alpha_beta_Negamax(self, board: Board, depth, alpha, beta):
-        old_alpha = alpha
-        zobrist_key = board.zobrist
-        ttEntry = self.get(zobrist_key)
-
-        if ttEntry != {"depth": -1} and ttEntry["depth"] >= depth:
-
-            if ttEntry["flag"] == "EXACT":
-                new_board = self.create_new_board(board, ttEntry)
-                return ttEntry["score"], new_board
-
-            elif ttEntry["flag"] == "LOWER_BOUND":
-                alpha = max(alpha, ttEntry["score"])
-                board.lower_bound = alpha
-            elif ttEntry["flag"] == "UPPER_BOUND":
-                beta = min(beta, ttEntry["score"])
-                board.upper_bound = beta
-
-            if alpha >= beta:
-                return ttEntry["score"], board
-
-        if depth == 0:
-
-            board, _ = self.handle_capture(board)
-            board.utility_function()
-            board.score = board.utility
-            return board.score, board
-
-        score = -math.inf
-        boards = self.next_moves(board)
-        for b, piece, move in boards:
-
-            value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
-
-            value = -value
-            if value > score:
-                score = value
-                board.best_board = b
-                board.best_move = (piece, move)
-
-            alpha = max(alpha, score)
-
-            if alpha >= beta:
-                if (board.zobrist, b.zobrist) not in self.important_moves:
-                    self.add_move((board.zobrist, b.zobrist))
-
-                else:
-                    self.important_moves[(board.zobrist, b.zobrist)] += 1
-
-                break
-
-        if score <= old_alpha:
-            board.flag = "UPPER_BOUND"  # fail low
-        elif score >= beta:
-            board.flag = "LOWER_BOUND"  # fail high
-        else:
-            board.flag = "EXACT"
-
-        board.score = score
-        board.upper_bound = alpha
-        board.lower_bound = beta
-        board.depth = depth
-        self.insert(board, board.best_move)
-
-        return score, board.best_board
-
-    def create_new_board(self, board: Board, ttEntry):
-
-        new_board = Board(team=board.turn)
-        new_board.pieces = copy.deepcopy(board.pieces)
-        new_board.change_board()
-        for piece in new_board.pieces:
-            piece_to_move = ttEntry["move"][0]
-            if piece.id == piece_to_move.id:
-                piece.is_selected = True
-                new_board = self.move_pieces(
-                    new_board, ttEntry["move"][1][0], ttEntry["move"][1][1]
-                )
-                piece.is_selected = False
-        new_board.zobrist = self.zobrist_hash(new_board)
-        new_board.turn = 1 if board.turn == 2 else 2
-
-        return new_board
-
-    def move_pieces(self, b: Board, i, j):
-        for piece in b.pieces:
-
-            if piece.is_selected:
-
-                b.board[piece.i, piece.j] = 0
-
-                piece.old_i, piece.old_j = piece.i, piece.j
-
-                piece.move(i, j)
-
-                if abs(i - piece.old_i) == 2:
-
-                    mid_i = (i + piece.old_i) // 2
-                    mid_j = (j + piece.old_j) // 2
-
-                    b.board[mid_i, mid_j] = 0
-
-                    for p in b.pieces:
-                        if p.i == mid_i and p.j == mid_j:
-                            b.pieces.remove(p)
-                            break
-                b.board[piece.i, piece.j] = piece.team
-
-                piece.is_selected = False
-        return b
-
+    """
     def handle_capture(self, board: Board):
         capture_available = False
 
@@ -266,48 +290,7 @@ class Engine:  # class for the engine
                                 p.possible_moves[move] = False
 
         return board, capture_available
-
-    def next_moves(self, board: Board):
-        boards = []
-        board, capture = self.handle_capture(board)
-        turn = board.turn
-        imp_boards = []
-        for piece in board.pieces:
-
-            piece.is_selected = True
-            if piece.team == board.turn:
-                for move in piece.possible_moves:
-                    if piece.possible_moves[move] == True:
-
-                        new_board_obj = Board(team=turn)
-                        new_board_obj.pieces = copy.deepcopy(board.pieces)
-                        new_board_obj.change_board()
-                        new_board_obj = self.move_pieces(
-                            new_board_obj, move[0], move[1]
-                        )
-                        new_board_obj.zobrist = self.zobrist_hash(new_board_obj)
-                        new_board_obj.turn = 1 if board.turn == 2 else 2
-
-                        if (
-                            board.zobrist,
-                            new_board_obj.zobrist,
-                        ) in self.important_moves:
-                            imp_boards.append((new_board_obj, piece, move))
-
-                        else:
-
-                            boards.append((new_board_obj, piece, move))
-
-            piece.is_selected = False
-            imp_boards = sorted(
-                imp_boards,
-                key=lambda item: self.important_moves.get(
-                    (board.zobrist, item[0].zobrist), float("-inf")
-                ),
-                reverse=True,
-            )
-
-        return imp_boards + boards
+    """
 
     def think(self, board: Board, depth, alpha, beta):
 
