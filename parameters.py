@@ -10,10 +10,16 @@ CELL_SIZE = GRID_SIZE // 9
 SIZE = 1000
 IMP_MOVES_SIZE = 4000
 PERCENTAGE = 0.75
-DEPTH = 8
+DEPTH = 3
 MIN = -math.inf
 MAX = math.inf
-RESET_TABLE = True
+RESET_TABLE = False
+ORDENING = {
+    "killer_moves": True,
+    "pruning_moves": True,
+    "history_heuristic": False,
+    "captures": True,
+}
 
 
 TEAM = 1

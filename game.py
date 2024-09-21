@@ -91,6 +91,7 @@ while running:
                                     env.board_obj.turn = (
                                         2 if env.board_obj.turn == 1 else 1
                                     )
+                                    env.board_obj.move_number += 1
                                     piece.is_selected = False
                                     env.board_obj.old_pieces = old_pieces
 

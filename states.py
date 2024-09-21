@@ -137,10 +137,13 @@ class Board:
 
         # Game state
         self.turn = turn
+        self.move_number = 0
         self.pieces: List[Piece] = []
         self.old_pieces = []
         self.old_moves_piece = None
         self.capture_available = False
+        self.win = False
+        self.game_over = False
 
         # Game board
         self.board = np.zeros((9, 9), dtype=int)
@@ -223,14 +226,18 @@ class Board:
 
         new_board = Board(team=self.turn)
         new_board.pieces = copy.deepcopy(self.pieces)
+        new_board.move_number = self.move_number
         new_board.change_board()
         for piece in new_board.pieces:
             piece_to_move = ttEntry["move"][0]
             if piece.id == piece_to_move.id:
-                piece.is_selected = True
+                print(piece_to_move.i, piece_to_move.j)
+                piece_to_move.is_selected = True
                 new_board.move_pieces(ttEntry["move"][1][0], ttEntry["move"][1][1])
-                piece.is_selected = False
+                piece_to_move.is_selected = False
+
         new_board.turn = 1 if self.turn == 2 else 2
+
         return new_board
 
     def count_threats(self, piece):
@@ -238,7 +245,11 @@ class Board:
         direction = -1 if piece.team == self.team else 1
 
         if (
-            self.board[piece.i + direction, piece.j + direction] == 2
+            piece.i + direction < 9
+            and piece.i + direction >= 0
+            and piece.j + direction >= 0
+            and piece.j + direction < 9
+            and self.board[piece.i + direction, piece.j + direction] == 2
             if piece.team == 1
             else 1
         ):
@@ -270,6 +281,8 @@ class Board:
                 self.board[piece.i, piece.j] = piece.team
 
                 piece.is_selected = False
+
+        self.move_number += 1
 
     def handle_capture(self):
         self.capture_available = False
@@ -324,44 +337,53 @@ class Board:
             utility (int): The calculated utility value for the board.
         """
 
-        POSITION_WEIGHT = 10
-        PIECE_WEIGHT = 2
-        VULNERABILITY_PENALTY = 700  # Penalty for vulnerability
-
+        POSITION_WEIGHT = 150
+        PIECE_WEIGHT = 30
+        VULNERABILITY_PENALTY = 60  # Penalty for vulnerability
         num_opponent_pieces = 0
         num_pieces = 0
         position_score = 0
-
         for piece in self.pieces:
-            if (piece.i == 0 and piece.team == self.team) or (
-                piece.i == 8 and piece.team != self.team
-            ):
-                self.utility = 100000 if piece.team == self.team else -100000
+            if piece.team == self.team and piece.i == 0:
+                self.utility = math.inf
+                self.win = True
+                return
+            elif piece.team != self.team and piece.i == 8:
+                self.utility = -math.inf
+                self.game_over = True
                 return
 
             num_threats = self.count_threats(piece)
-
+            # print(
+            #     position_score,
+            #     "prima",
+            #     num_threats,
+            #     VULNERABILITY_PENALTY * (1 - 0.1**num_threats),
+            # )
             if num_threats > 0:
-                position_score -= (
-                    num_threats * VULNERABILITY_PENALTY
-                )  # Penalize for threats
+                position_score -= VULNERABILITY_PENALTY * (1 - 0.1**num_threats)
+            # Penalize for threats
 
-            if piece.team == self.team:
+            position_score += (
+                (piece.i) * POSITION_WEIGHT
+                if self.turn != self.team
+                else (8 - piece.i) * POSITION_WEIGHT
+            )
+
+            # print(piece.i if self.turn != self.team else 8 - piece.i)
+
+            if piece.team == self.turn:
                 num_pieces += 1
-                position_score += piece.i if self.turn != self.team else -8 + piece.i
+            else:
+                num_opponent_pieces += 1
 
-            if piece.team == self.team and 1 < piece.j < 7:
-                direction = -1 if piece.team == self.team else 1
-                if 0 <= piece.i + (3 * direction) < 9:  # Ensure there is space
-                    pieces_in_triangle = check_triangle(self, piece, direction)
-                    empty_cells_in_triangle = 10 - pieces_in_triangle
-                    if empty_cells_in_triangle > 0:
-                        position_score += 2500 * (0.5**pieces_in_triangle)
-                    else:
-                        num_opponent_pieces += 1
-
-        self.utility = position_score * POSITION_WEIGHT
-        self.utility -= (num_opponent_pieces + num_pieces) * PIECE_WEIGHT
+        reduction_factor = max(0, 1 - (1 / self.move_number))
+        self.utility = position_score
+        self.utility -= (
+            ((num_opponent_pieces - num_pieces) * PIECE_WEIGHT * reduction_factor)
+            if self.team == self.turn
+            else ((num_pieces - num_opponent_pieces) * PIECE_WEIGHT * reduction_factor)
+        )
 
     def undo_move(self):
         self.turn = 1 if self.turn == 2 else 2
@@ -431,14 +453,14 @@ class PygameEnviroment:  # class for the pygame enviroment
         screen.blit(player_text_rendered, player_text_rect)
 
 
-def check_triangle(self, piece, direction):
+def check_triangle(self, piece: Piece, direction):
     pieces_in_triangle = 0
 
     for row_offset, width in enumerate([4, 3, 2, 1]):
         for col_offset in range(-width // 2, width // 2):
             row = piece.i + (row_offset * direction)
             col = piece.j + col_offset
-            if 0 <= row < 9 and 0 <= col < 9 and self.board[row, col] != 0:
+            if 0 <= row < 9 and 0 <= col < 9 and self.board[row, col] == piece.opp_team:
                 pieces_in_triangle += 1
 
     return pieces_in_triangle
