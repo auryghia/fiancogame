@@ -34,24 +34,11 @@ class Engine:
         self.reset_table = reset_table
         self.percentage = p
 
-        # Transposition table dtype definition
-        dtype = np.dtype(
-            [
-                ("zobrist", np.int64),
-                ("score", np.float64),
-                ("flag", "U10"),
-                ("upper_bound", np.float64),
-                ("lower_bound", np.float64),
-                ("depth", np.int32),
-                ("move", object),
-            ]
-        )
-
-        self.t_table = np.zeros(self.size, dtype=dtype)
+        self.t_table = dict()
         self.num_elements = 0
-        self.pruning_moves = dict()
-        self.killer_moves = defaultdict(lambda: OrderedDict())
-        self.history_heuristic = dict()
+        self.pruningMoves = dict()
+        self.killerMoves = defaultdict(lambda: OrderedDict())
+        self.histHeuristic = dict()
         self.max_size = IMP_MOVES_SIZE
         self.zobrist_table = np.random.randint(
             0, 2**63 - 1, size=(9, 9, 3), dtype=np.int64
@@ -76,15 +63,14 @@ class Engine:
         board.depth = depth
         ttEntry = self.get(zobrist_key)
 
-        # Retrieve transposition table entry if it exists and is deep enough
         if ttEntry["depth"] != -1 and ttEntry["depth"] >= depth:
             if ttEntry["flag"] == "EXACT":
-                print(ttEntry["move"], ttEntry["move"][0].i, ttEntry["move"][0].j)
-                new_board = board.create_new_board(ttEntry)
-                new_board.zobrist = self.zobrist_hash(new_board)
-
-                return ttEntry["score"], new_board
+                oi, oj, i, j = ttEntry["move"]
+                newBoard = board.create_new_board(oi, oj, i, j)
+                newBoard.zobrist = self.zobrist_hash(newBoard)
+                return ttEntry["score"], newBoard
             elif ttEntry["flag"] == "LOWER_BOUND":
+
                 alpha = max(alpha, ttEntry["score"])
                 board.lower_bound = alpha
             elif ttEntry["flag"] == "UPPER_BOUND":
@@ -94,20 +80,17 @@ class Engine:
             if alpha >= beta:
                 return ttEntry["score"], board
 
-        # Base case: if depth is zero, evaluate the board
         if depth == 0:
             board.turn = 2 if board.turn == 1 else 1
             board.utility_function()
             board.turn = 2 if board.turn == 1 else 1
             board.utility = -board.utility
-            # print(board.board, board.win, board.game_over, board.utility)
             return board.utility, board
 
-        # Search deeper using Negamax
         score = -math.inf
         boards = self.next_moves(board)
 
-        for b, piece, move in boards:
+        for b, oi, oj, i, j in boards:
 
             value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
 
@@ -121,15 +104,14 @@ class Engine:
             #     "alpha",
             #     beta,
             #     "beta",
-            #     depth,
+            #     depthore = score,
             #     "depth",
             # )
 
             if value > score:
-
                 score = value
-                board.best_board = b
-                board.best_move = (piece, move)
+                bestMove = (oi, oj, i, j)
+                bestBoard = copy.deepcopy(b)
 
             alpha = max(alpha, score)
 
@@ -150,13 +132,16 @@ class Engine:
         )
         board.upper_bound = alpha
         board.lower_bound = beta
+        board.best_move = bestMove
         board.score = score
-
+        board.bestBoard = bestBoard
+        # print(board.board, board.best_move)
         if ORDENING["history_heuristic"]:
-            self.add_history_heuristic((board.zobrist, board.best_board.zobrist), score)
+            self.add_history_heuristic((board.zobrist, board.bestBoard.zobrist), score)
+
         self.insert(board)
 
-        return score, board.best_board
+        return score, board.bestBoard
 
     def next_moves(self, board: Board):
         """
@@ -172,97 +157,86 @@ class Engine:
         boards = []
         board.handle_capture()
         turn = board.turn
-        killer_moves, pruning_moves, hist_h, captures = [], [], [], []
+        killerMoves, pruningMoves, histHeuristic, captMoves = [], [], [], []
 
         for piece in board.pieces:
 
             if piece.team == turn:
-                piece.is_selected = True
-                for move in piece.possible_moves:
-                    if piece.possible_moves[move]:
-                        new_board_obj = Board(team=board.turn)
-                        new_board_obj.pieces = copy.deepcopy(board.pieces)
-                        new_board_obj.move_number = board.move_number
-                        new_board_obj.win = board.win
-                        new_board_obj.game_over = board.game_over
-                        new_board_obj.change_board()
-                        new_board_obj.move_pieces(move[0], move[1])
-                        new_board_obj.handle_capture()
-                        new_board_obj.turn = 2 if board.turn == 1 else 1
-                        new_board_obj.zobrist = self.zobrist_hash(new_board_obj)
+                for move in piece.possibleMoves:
+                    if piece.possibleMoves[move]:
+                        i, j = copy.deepcopy(piece.i), copy.deepcopy(piece.j)
+                        newBoardObj = board.create_new_board(i, j, move[0], move[1])
+                        newBoardObj.zobrist = self.zobrist_hash(newBoardObj)
+
                         if (
                             ORDENING["killer_moves"]
-                            and board.depth in self.killer_moves
-                            and (board.zobrist, new_board_obj.zobrist)
-                            in self.killer_moves[board.depth]
+                            and board.depth in self.killerMoves
+                            and (board.zobrist, newBoardObj.zobrist)
+                            in self.killerMoves[board.depth]
                         ):
-                            killer_moves.append((new_board_obj, piece, move))
-                        elif ORDENING["captures"] and new_board_obj.capture_available:
-                            captures.append((new_board_obj, piece, move))
+                            killerMoves.append((newBoardObj, i, j, move[0], move[1]))
+                        elif ORDENING["captures"] and newBoardObj.capture_available:
+                            captMoves.append((newBoardObj, i, j, move[0], move[1]))
                         elif (
                             ORDENING["history_heuristic"] and board.zobrist,
-                            new_board_obj.zobrist,
-                        ) in self.history_heuristic:
-                            hist_h.append((new_board_obj, piece, move))
+                            newBoardObj.zobrist,
+                        ) in self.histHeuristic:
+                            histHeuristic.append((newBoardObj, i, j, move[0], move[1]))
                         elif (
                             ORDENING["pruning_moves"]
-                            and (board.zobrist, new_board_obj.zobrist)
-                            in self.pruning_moves
+                            and (board.zobrist, newBoardObj.zobrist)
+                            in self.pruningMoves
                         ):
-                            pruning_moves.append((new_board_obj, piece, move))
+                            pruningMoves.append((newBoardObj, i, j, move[0], move[1]))
                         else:
-                            boards.append((new_board_obj, piece, move))
-
-                piece.is_selected = False
+                            boards.append((newBoardObj, i, j, move[0], move[1]))
 
         if ORDENING["history_heuristic"]:
-            hist_h = sorted(
-                hist_h,
-                key=lambda item: self.history_heuristic.get(
+            histHeuristic = sorted(
+                histHeuristic,
+                key=lambda item: self.histHeuristic.get(
                     (board.zobrist, item[0].zobrist), float("-inf")
                 ),
                 reverse=True,
             )
 
         if ORDENING["pruning_moves"]:
-            pruning_moves = sorted(
-                pruning_moves,
-                key=lambda item: self.pruning_moves.get(
+            pruningMoves = sorted(
+                pruningMoves,
+                key=lambda item: self.pruningMoves.get(
                     (board.zobrist, item[0].zobrist), float("-inf")
                 ),
                 reverse=True,
             )
 
-        return killer_moves + captures + pruning_moves + hist_h + boards
+        return killerMoves + captMoves + pruningMoves + histHeuristic + boards
 
     def add_pruning_move(self, move):  # add move to important moves
-        if move not in self.pruning_moves:
-            if len(self.pruning_moves) >= self.max_size:
+        if move not in self.pruningMoves:
+            if len(self.pruningMoves) >= self.max_size:
                 self.trim_important_moves()
-            self.pruning_moves[move] = 0
+            self.pruningMoves[move] = 0
         else:
-            self.pruning_moves[move] += 1
+            self.pruningMoves[move] += 1
 
     def trim_important_moves(self):  # trim important moves
-        pruning_moves_keys = list(self.pruning_moves.keys())
-        mid_index = len(pruning_moves_keys) // 2
-        self.pruning_moves = {
-            key: self.pruning_moves[key] for key in pruning_moves_keys[mid_index:]
-        }
+        pmkeys = list(self.pruningMoves.keys())
+        mid_index = len(pmkeys) // 2
+        self.pruningMoves = {key: self.pruningMoves[key] for key in pmkeys[mid_index:]}
         print("Trimming important moves")
 
     def add_killer_move(self, depth, move):  # add killer move
-        if depth not in self.killer_moves:
-            self.killer_moves[depth] = {}
+        if depth not in self.killerMoves:
+            self.killerMoves[depth] = {}
 
-        if move in self.killer_moves[depth]:
-            self.killer_moves[depth][move] += 1
+        if move in self.killerMoves[depth]:
+            self.killerMoves[depth][move] += 1
         else:
-            self.killer_moves[depth][move] = 1
-        if len(self.killer_moves[depth]) > 10:
-            self.killer_moves[depth] = OrderedDict(
+            self.killerMoves[depth][move] = 1
+        if len(self.killerMoves[depth]) > 10:
+            self.killerMoves[depth] = OrderedDict(
                 sorted(
-                    self.killer_moves[depth].items(),
+                    self.killerMoves[depth].items(),
                     key=lambda item: item[1],
                     reverse=True,
                 )[
@@ -271,22 +245,22 @@ class Engine:
             )
 
     def add_history_heuristic(self, move, score):  # add history heuristic
-        if move in self.history_heuristic:
-            self.history_heuristic[move] += score
+        if move in self.histHeuristic:
+            self.histHeuristic[move] += score
         else:
-            if len(self.history_heuristic) >= self.max_size:
+            if len(self.histHeuristic) >= self.max_size:
                 self.trim_history_heuristic()
                 print("Trimming history")
 
-            self.history_heuristic[move] = score
+            self.histHeuristic[move] = score
 
     def trim_history_heuristic(self):  # trim history heuristic
         sorted_history = sorted(
-            self.history_heuristic.items(), key=lambda x: x[1], reverse=True
+            self.histHeuristic.items(), key=lambda x: x[1], reverse=True
         )
 
         mid_index = len(sorted_history) // 2
-        self.history_heuristic = dict(sorted_history[:mid_index])
+        self.histHeuristic = dict(sorted_history[:mid_index])
 
         print("Trimming history")
 
@@ -300,60 +274,59 @@ class Engine:
 
         return zobrist_value
 
-    def hash_index(self, zobrist_value):  # hash index
-        return zobrist_value % self.size
-
     def insert(self, board: Board):  # insert into table
         if self.num_elements == self.size:
             self.change_table()
 
-        # board.zobrist = self.zobrist_hash(board)
-        index = self.hash_index(board.zobrist)
-        self.t_table[index] = np.array(
-            [
-                (
-                    board.zobrist,
-                    board.score,
-                    board.flag,
-                    board.upper_bound,
-                    board.lower_bound,
-                    board.depth,
-                    (copy.deepcopy(board.best_move[0]), board.best_move[1]),
-                )
-            ],
-            dtype=self.t_table.dtype,
-        )
+        if board.zobrist not in self.t_table:
+            # = self.hash_index(board.zobrist)
+            self.t_table[board.zobrist] = {
+                "score": board.score,
+                "flag": board.flag,
+                "upper_bound": board.upper_bound,
+                "lower_bound": board.lower_bound,
+                "depth": board.depth,
+                "best_move": board.best_move,
+            }
 
-        self.num_elements += 1
+            self.num_elements += 1
+
+        else:
+            if board.depth > self.t_table[board.zobrist]["depth"]:
+                self.t_table[board.zobrist] = {
+                    "score": board.score,
+                    "flag": board.flag,
+                    "upper_bound": board.upper_bound,
+                    "lower_bound": board.lower_bound,
+                    "depth": board.depth,
+                    "best_move": board.best_move,
+                }
 
     def get(self, key):  # get from table
-        index = self.hash_index(key)
-        entry = self.t_table[index]
-        if entry["depth"] == -1:
-            return {"depth": -1}
-        return entry
+
+        if key not in self.t_table:
+            return {"depth": -1, "zobrist": 0}
+
+        else:
+            return self.t_table[key]
 
     def change_table(self):  # change table
-        new_table = np.zeros(self.size, dtype=self.t_table.dtype)
+        newTable = dict()
         all_elements = []
-        for i in range(self.size):
-            entry = self.t_table[i]
-            if entry["depth"] != -1:
-                key = self.hash_index(entry["zobrist"])
-                all_elements.append((key, entry))
+        for k in self.t_table:
+            entry = self.t_table[k]
+            all_elements.append((k, entry))
 
         largest_elements = heapq.nlargest(
             int(self.size * self.percentage), all_elements, key=lambda x: x[1]["depth"]
         )
 
         for zobrist, entry in largest_elements:
-            new_index = self.hash_index(zobrist) % self.size
-            new_table[new_index] = entry
-
-        self.table = new_table
+            newTable[zobrist] = entry
+        self.table = newTable
 
     def clear_table(self):
-        self.t_table = np.zeros(self.size, dtype=self.t_table.dtype)
+        self.t_table = dict()
         self.num_elements = 0
 
     def think(self, board: Board, depth, alpha, beta):
@@ -361,13 +334,13 @@ class Engine:
         old_pieces = copy.deepcopy(board.pieces)
         start_time = time.time()
         board.zobrist = self.zobrist_hash(board)
-        score, best_board = self.alpha_beta_Negamax(board, depth, alpha, beta)
-        best_board.old_pieces = old_pieces
-        board = copy.deepcopy(best_board)
+        score, bestBoard = self.alpha_beta_Negamax(board, depth, alpha, beta)
+        bestBoard.old_pieces = old_pieces
+        board = copy.deepcopy(bestBoard)
 
         if self.reset_table:
             self.clear_table()
-        self.pruning_moves = dict()
+        self.pruningMoves = dict()
         elapsed_time = time.time() - start_time
 
         print(f"Tempo impiegato da alpha_beta_Negamax: {elapsed_time:.4f} secondi")

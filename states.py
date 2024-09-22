@@ -23,11 +23,8 @@ class Piece:
         self.id: int = None  # Unique identifier for the piece
         self.team: int = team  # Team number
         self.opp_team: int = 1 if team == 2 else 2  # Opponent's team
-        self.is_king: bool = False  # Flag for king status
         self.is_selected: bool = False  # Flag for selection status
-
-        # Possible moves dictionary, initialized based on current position
-        self.possible_moves: dict = self.initialize_possible_moves()
+        self.possibleMoves: dict = self.initialize_possible_moves()
 
     def initialize_possible_moves(self) -> dict:
         """
@@ -54,7 +51,7 @@ class Piece:
         :param direction: The direction of movement (1 for down, -1 for up).
         """
         # Initialize possible moves dictionary
-        self.possible_moves = {
+        self.possibleMoves = {
             (self.i + direction, self.j): False,  # Simple forward move
             (self.i + 2 * direction, self.j - 2): False,  # Capture move (left)
             (self.i + 2 * direction, self.j + 2): False,  # Capture move (right)
@@ -68,14 +65,14 @@ class Piece:
         # Check simple forward move
         if 0 <= self.i + direction <= 8:
             if board[self.i + direction][self.j] == 0:
-                self.possible_moves[(self.i + direction, self.j)] = True
+                self.possibleMoves[(self.i + direction, self.j)] = True
 
             # Check adjacent horizontal moves
             if self.j - 1 >= 0 and board[self.i][self.j - 1] == 0:
-                self.possible_moves[(self.i, self.j - 1)] = True
+                self.possibleMoves[(self.i, self.j - 1)] = True
 
             if self.j + 1 <= 8 and board[self.i][self.j + 1] == 0:
-                self.possible_moves[(self.i, self.j + 1)] = True
+                self.possibleMoves[(self.i, self.j + 1)] = True
 
         # Check capture moves
         if 0 <= self.i + 2 * direction <= 8:
@@ -85,9 +82,9 @@ class Piece:
                 and board[self.i + direction][self.j - 1] == self.opp_team
                 and board[self.i + 2 * direction][self.j - 2] == 0
             ):
-                self.possible_moves[(self.i + direction, self.j)] = False
-                self.possible_moves[(self.i, self.j - 1)] = False
-                self.possible_moves[(self.i + 2 * direction, self.j - 2)] = True
+                self.possibleMoves[(self.i + direction, self.j)] = False
+                self.possibleMoves[(self.i, self.j - 1)] = False
+                self.possibleMoves[(self.i + 2 * direction, self.j - 2)] = True
 
             # Check right capture
             if (
@@ -95,17 +92,17 @@ class Piece:
                 and board[self.i + direction][self.j + 1] == self.opp_team
                 and board[self.i + 2 * direction][self.j + 2] == 0
             ):
-                self.possible_moves[(self.i + direction, self.j)] = False
-                self.possible_moves[(self.i, self.j + 1)] = False
-                self.possible_moves[(self.i + 2 * direction, self.j + 2)] = True
+                self.possibleMoves[(self.i + direction, self.j)] = False
+                self.possibleMoves[(self.i, self.j + 1)] = False
+                self.possibleMoves[(self.i + 2 * direction, self.j + 2)] = True
 
         # Special case for edge of the board
         if direction == -1 and self.i - 1 == 0 and board[self.i - 1][self.j] == 0:
-            self.possible_moves[(self.i - 1, self.j)] = True
+            self.possibleMoves[(self.i - 1, self.j)] = True
             # Invalidate all other moves
-            for move in self.possible_moves:
+            for move in self.possibleMoves:
                 if move != (self.i - 1, self.j):
-                    self.possible_moves[move] = False
+                    self.possibleMoves[move] = False
 
     def move(self, i: int, j: int) -> None:
         """
@@ -152,7 +149,7 @@ class Board:
         self.score = -math.inf
         self.utility = 0
         self.best_move = None
-        self.best_board = None
+        self.bestBoard = None
 
         # Search bounds
         self.upper_bound = math.inf
@@ -222,25 +219,27 @@ class Board:
         for piece in self.pieces:
             self.board[piece.i, piece.j] = piece.team
 
-    def create_new_board(self, ttEntry):
+    def create_pieces(self):
+        self.pieces = []
+        board = self.board
+        for i in range(9):
+            for j in range(9):
+                if board[i, j] != 0:
+                    piece = Piece(i, j, board[i, j])
+                    self.pieces.append(piece)
 
-        new_board = Board(team=self.turn)
-        new_board.pieces = copy.deepcopy(self.pieces)
+    def create_new_board(self, oi, oj, i, j):
+        new_board = Board(team=self.team, turn=self.turn)
+        new_board.board = copy.deepcopy(self.board)
+        new_board.create_pieces()
+        new_board.handle_capture()
         new_board.move_number = self.move_number
-        new_board.change_board()
-        for piece in new_board.pieces:
-            piece_to_move = ttEntry["move"][0]
-            if piece.id == piece_to_move.id:
-                print(piece_to_move.i, piece_to_move.j)
-                piece_to_move.is_selected = True
-                new_board.move_pieces(ttEntry["move"][1][0], ttEntry["move"][1][1])
-                piece_to_move.is_selected = False
-
-        new_board.turn = 1 if self.turn == 2 else 2
-
+        new_board.win = self.win
+        new_board.game_over = self.game_over
+        new_board.move_pieces(oi, oj, i, j)
         return new_board
 
-    def count_threats(self, piece):
+    def count_threats(self, piece: Piece) -> int:
         num_threats = 0
         direction = -1 if piece.team == self.team else 1
 
@@ -256,10 +255,12 @@ class Board:
             num_threats += 1
         return num_threats
 
-    def move_pieces(self, i, j):
+    def move_pieces(self, oi, oj, i, j):
+
         for piece in self.pieces:
 
-            if piece.is_selected:
+            if piece.i == oi and piece.j == oj:
+                piece.is_selected = True
 
                 self.board[piece.i, piece.j] = 0
 
@@ -282,6 +283,7 @@ class Board:
 
                 piece.is_selected = False
 
+        self.turn = 2 if self.turn == 1 else 1
         self.move_number += 1
 
     def handle_capture(self):
@@ -298,22 +300,22 @@ class Board:
                     (
                         piece.i - 2 >= 0
                         and piece.j - 2 >= 0
-                        and piece.possible_moves[(piece.i - 2, piece.j - 2)] == True
+                        and piece.possibleMoves[(piece.i - 2, piece.j - 2)] == True
                     )
                     or (
                         piece.i - 2 >= 0
                         and piece.j + 2 < 9
-                        and piece.possible_moves[(piece.i - 2, piece.j + 2)] == True
+                        and piece.possibleMoves[(piece.i - 2, piece.j + 2)] == True
                     )
                     or (
                         piece.i + 2 < 9
                         and piece.j - 2 >= 0
-                        and piece.possible_moves[(piece.i + 2, piece.j - 2)] == True
+                        and piece.possibleMoves[(piece.i + 2, piece.j - 2)] == True
                     )
                     or (
                         piece.i + 2 < 9
                         and piece.j + 2 < 9
-                        and piece.possible_moves[(piece.i + 2, piece.j + 2)] == True
+                        and piece.possibleMoves[(piece.i + 2, piece.j + 2)] == True
                     )
                 ):
                     self.capture_available = True
@@ -321,22 +323,11 @@ class Board:
                 for p in self.pieces:
                     if p.team == self.turn:
 
-                        for move in p.possible_moves:
+                        for move in p.possibleMoves:
                             if abs(move[0] - p.i) != 2 or abs(move[1] - p.j) != 2:
-                                p.possible_moves[move] = False
+                                p.possibleMoves[move] = False
 
     def utility_function(self) -> None:
-        """
-        Calculate the utility of the current board state.
-
-        This function evaluates the board based on the number of opponent pieces,
-        the position of the pieces, and any threats faced by the player's pieces.
-        The utility value influences decision-making in the game.
-
-        Attributes:
-            utility (int): The calculated utility value for the board.
-        """
-
         POSITION_WEIGHT = 150
         PIECE_WEIGHT = 30
         VULNERABILITY_PENALTY = 60  # Penalty for vulnerability
@@ -354,12 +345,7 @@ class Board:
                 return
 
             num_threats = self.count_threats(piece)
-            # print(
-            #     position_score,
-            #     "prima",
-            #     num_threats,
-            #     VULNERABILITY_PENALTY * (1 - 0.1**num_threats),
-            # )
+
             if num_threats > 0:
                 position_score -= VULNERABILITY_PENALTY * (1 - 0.1**num_threats)
             # Penalize for threats
@@ -369,8 +355,6 @@ class Board:
                 if self.turn != self.team
                 else (8 - piece.i) * POSITION_WEIGHT
             )
-
-            # print(piece.i if self.turn != self.team else 8 - piece.i)
 
             if piece.team == self.turn:
                 num_pieces += 1
@@ -422,8 +406,8 @@ class PygameEnviroment:  # class for the pygame enviroment
                 )
 
             if piece.is_selected:
-                for move in piece.possible_moves:
-                    if piece.possible_moves[move]:
+                for move in piece.possibleMoves:
+                    if piece.possibleMoves[move]:
                         center = (
                             move[1] * cell_size + cell_size // 2,
                             move[0] * cell_size + cell_size // 2,
