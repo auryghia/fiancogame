@@ -31,8 +31,23 @@ class Engine:
         self.size = size
         self.reset_table = reset_table
         self.percentage = p
+        """
+        dtype = np.dtype(
+            [
+                ("zobrist", np.int64),
+                ("score", np.float64),
+                ("flag", "U10"),
+                ("upper_bound", np.float64),
+                ("lower_bound", np.float64),
+                ("depth", np.int32),
+                ("move", object),
+            ]
+        )
 
-        self.t_table = dict()
+        self.t_table = np.empty(self.size, dtype=dict)
+        for i in range(self.size):
+            self.t_table[i] = dtype
+        """
         self.num_elements = 0
         self.pruningMoves = dict()
         self.killerMoves = defaultdict(lambda: OrderedDict())
@@ -41,6 +56,9 @@ class Engine:
         self.zobrist_table = np.random.randint(
             0, 2**63 - 1, size=(9, 9, 3), dtype=np.int64
         )
+
+    def hash_function(self, key):
+        return hash(int(str(abs(key))[:6])) % self.size
 
     def alpha_beta_Negamax(self, board: Board, depth: int, alpha: float, beta: float):
         """
@@ -55,15 +73,16 @@ class Engine:
         Returns:
             (float, Board): The best score and the corresponding board state.
         """
+        """
 
         old_alpha = alpha
         zobrist_key = board.zobrist
         board.depth = depth
         ttEntry = self.get(zobrist_key)
-
-        if ttEntry["depth"] != -1 and ttEntry["depth"] >= depth:
+        print(ttEntry)
+        if ttEntry["depth"] != -1:
             if ttEntry["flag"] == "EXACT":
-                print("Transposition table hit")
+                # print("Transposition table hit")
 
                 oi, oj, i, j = ttEntry["best_move"]
                 newBoard = board.create_new_board(oi, oj, i, j)
@@ -79,7 +98,7 @@ class Engine:
 
             if alpha >= beta:
                 return ttEntry["score"], board
-
+        """
         if depth == 0:
             board.turn = 2 if board.turn == 1 else 1
             board.utility_function()
@@ -99,7 +118,7 @@ class Engine:
             if value > score:
                 score = value
                 bestMove = (oi, oj, i, j)
-                bestBoard = copy.deepcopy(b)
+                bestBoard = b
 
             alpha = max(alpha, score)
 
@@ -110,12 +129,13 @@ class Engine:
                     self.add_pruning_move((board.zobrist, b.zobrist))
 
                 break
-
+        """
         board.flag = (
             "EXACT"
             if old_alpha < score < beta
             else ("UPPER_BOUND" if score <= old_alpha else "LOWER_BOUND")
         )
+        """
         board.upper_bound = alpha
         board.lower_bound = beta
         board.best_move = bestMove
@@ -123,9 +143,9 @@ class Engine:
         board.bestBoard = bestBoard
         if ORDENING["history_heuristic"]:
             self.add_history_heuristic((board.zobrist, board.bestBoard.zobrist), score)
-
+        """
         self.insert(board)
-
+        """
         return score, board.bestBoard
 
     def next_moves(self, board: Board):
@@ -149,7 +169,7 @@ class Engine:
             if piece.team == turn:
                 for move in piece.possibleMoves:
                     if piece.possibleMoves[move]:
-                        i, j = copy.deepcopy(piece.i), copy.deepcopy(piece.j)
+                        i, j = piece.i, piece.j
                         newBoardObj = board.create_new_board(i, j, move[0], move[1])
                         newBoardObj.zobrist = self.zobrist_hash(newBoardObj)
 
@@ -254,55 +274,43 @@ class Engine:
         return zobrist_value
 
     def insert(self, board: Board):
-        """Insert a board state into the transposition table."""
-        if self.num_elements == self.size:
-            self.reorganize_table()
+        index = self.hash_function(board.zobrist)
+        cell = self.t_table[index]
 
-        entry = self.create_entry(board)
-
-        if board.zobrist not in self.t_table:
-            self.t_table[board.zobrist] = entry
-            self.num_elements += 1
-        else:
-            if board.depth > self.t_table[board.zobrist]["depth"]:
-                self.t_table[board.zobrist] = entry
+        for k in cell:
+            if k == board.zobrist:
+                return
+        self.t_table[index][board.zobrist] = self.create_entry(board)
 
     def create_entry(self, board: Board):
         """Create a transposition table entry for the given board state."""
-        return {
-            "score": board.score,
-            "flag": board.flag,
-            "upper_bound": board.upper_bound,
-            "lower_bound": board.lower_bound,
-            "depth": board.depth,
-            "best_move": board.best_move,
-        }
 
-    def get(self, key):  # get from table
-
-        if key not in self.t_table:
-            return {"depth": -1, "zobrist": 0}
-
-        else:
-            return self.t_table[key]
-
-    def reorganize_table(self):  # change table
-        newTable = dict()
-        all_elements = []
-        for k in self.t_table:
-            entry = self.t_table[k]
-            all_elements.append((k, entry))
-
-        largest_elements = heapq.nlargest(
-            int(self.size * self.percentage), all_elements, key=lambda x: x[1]["depth"]
+        entry = np.array(
+            [
+                (
+                    board.zobrist,
+                    board.score,
+                    board.flag,
+                    board.upper_bound,
+                    board.lower_bound,
+                    board.depth,
+                    board.best_move,
+                )
+            ],
+            dtype=self.t_table.dtype,
         )
+        return entry
 
-        for zobrist, entry in largest_elements:
-            newTable[zobrist] = entry
-        self.table = newTable
+    def get(self, key):
+        index = self.hash_function(key)
+        cell = self.t_table[index]
+        for k in cell:
+            if k == key:
+                return cell[k]
+        return {"depth": -1, "zobrist": 0}
 
     def clear_table(self):
-        self.t_table = dict()
+        self.t_table = [[] for _ in range(self.size)]
         self.num_elements = 0
 
     def think(self, board: Board, depth, alpha, beta):

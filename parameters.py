@@ -7,9 +7,9 @@ GRID_SIZE = 720
 CELL_SIZE = GRID_SIZE // 9
 
 SIZE = 4000
-IMP_MOVES_SIZE = 40000
+IMP_MOVES_SIZE = 4000
 PERCENTAGE = 0.75
-DEPTH = 5
+DEPTH = 3
 MIN = -math.inf
 MAX = math.inf
 RESET_TABLE = True
@@ -17,7 +17,7 @@ ORDENING = {
     "killer_moves": False,
     "pruning_moves": False,
     "history_heuristic": False,
-    "captures": True,
+    "captures": False,
 }
 
 
