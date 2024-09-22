@@ -63,7 +63,9 @@ class Engine:
 
         if ttEntry["depth"] != -1 and ttEntry["depth"] >= depth:
             if ttEntry["flag"] == "EXACT":
-                oi, oj, i, j = ttEntry["move"]
+                print("Transposition table hit")
+
+                oi, oj, i, j = ttEntry["best_move"]
                 newBoard = board.create_new_board(oi, oj, i, j)
                 newBoard.zobrist = self.zobrist_hash(newBoard)
                 return ttEntry["score"], newBoard
@@ -109,8 +111,6 @@ class Engine:
 
                 break
 
-        # Store result in the transposition table
-
         board.flag = (
             "EXACT"
             if old_alpha < score < beta
@@ -121,7 +121,6 @@ class Engine:
         board.best_move = bestMove
         board.score = score
         board.bestBoard = bestBoard
-        # print(board.board, board.best_move)
         if ORDENING["history_heuristic"]:
             self.add_history_heuristic((board.zobrist, board.bestBoard.zobrist), score)
 
@@ -177,35 +176,29 @@ class Engine:
                         else:
                             boards.append((newBoardObj, i, j, move[0], move[1]))
 
-        if ORDENING["history_heuristic"]:
-            histHeuristic = sorted(
-                histHeuristic,
-                key=lambda item: self.histHeuristic.get(
-                    (board.zobrist, item[0].zobrist), float("-inf")
-                ),
-                reverse=True,
-            )
-
-        if ORDENING["pruning_moves"]:
-            pruningMoves = sorted(
-                pruningMoves,
-                key=lambda item: self.pruningMoves.get(
-                    (board.zobrist, item[0].zobrist), float("-inf")
-                ),
-                reverse=True,
-            )
+        self.sort_moves(histHeuristic, board, self.histHeuristic)
+        self.sort_moves(pruningMoves, board, self.pruningMoves)
 
         return killerMoves + captMoves + pruningMoves + histHeuristic + boards
+
+    def sort_moves(self, move_list, board, move_dict):
+        if move_list:
+            move_list.sort(
+                key=lambda item: move_dict.get(
+                    (board.zobrist, item[0].zobrist), float("-inf")
+                ),
+                reverse=True,
+            )
 
     def add_pruning_move(self, move):  # add move to important moves
         if move not in self.pruningMoves:
             if len(self.pruningMoves) >= self.max_size:
-                self.trim_important_moves()
-            self.pruningMoves[move] = 0
+                self.trim_pruning_moves()
+            self.pruningMoves[move] = 1
         else:
             self.pruningMoves[move] += 1
 
-    def trim_important_moves(self):  # trim important moves
+    def trim_pruning_moves(self):  # trim important moves
         pmkeys = list(self.pruningMoves.keys())
         mid_index = len(pmkeys) // 2
         self.pruningMoves = {key: self.pruningMoves[key] for key in pmkeys[mid_index:]}
@@ -227,7 +220,7 @@ class Engine:
                     reverse=True,
                 )[
                     :10
-                ]  # keep only the best 100 moves
+                ]  # keep only the best 10 moves for depth
             )
 
     def add_history_heuristic(self, move, score):  # add history heuristic
@@ -260,33 +253,30 @@ class Engine:
 
         return zobrist_value
 
-    def insert(self, board: Board):  # insert into table
+    def insert(self, board: Board):
+        """Insert a board state into the transposition table."""
         if self.num_elements == self.size:
-            self.change_table()
+            self.reorganize_table()
+
+        entry = self.create_entry(board)
 
         if board.zobrist not in self.t_table:
-            # = self.hash_index(board.zobrist)
-            self.t_table[board.zobrist] = {
-                "score": board.score,
-                "flag": board.flag,
-                "upper_bound": board.upper_bound,
-                "lower_bound": board.lower_bound,
-                "depth": board.depth,
-                "best_move": board.best_move,
-            }
-
+            self.t_table[board.zobrist] = entry
             self.num_elements += 1
-
         else:
             if board.depth > self.t_table[board.zobrist]["depth"]:
-                self.t_table[board.zobrist] = {
-                    "score": board.score,
-                    "flag": board.flag,
-                    "upper_bound": board.upper_bound,
-                    "lower_bound": board.lower_bound,
-                    "depth": board.depth,
-                    "best_move": board.best_move,
-                }
+                self.t_table[board.zobrist] = entry
+
+    def create_entry(self, board: Board):
+        """Create a transposition table entry for the given board state."""
+        return {
+            "score": board.score,
+            "flag": board.flag,
+            "upper_bound": board.upper_bound,
+            "lower_bound": board.lower_bound,
+            "depth": board.depth,
+            "best_move": board.best_move,
+        }
 
     def get(self, key):  # get from table
 
@@ -296,7 +286,7 @@ class Engine:
         else:
             return self.t_table[key]
 
-    def change_table(self):  # change table
+    def reorganize_table(self):  # change table
         newTable = dict()
         all_elements = []
         for k in self.t_table:
@@ -316,21 +306,20 @@ class Engine:
         self.num_elements = 0
 
     def think(self, board: Board, depth, alpha, beta):
-
         old_pieces = copy.deepcopy(board.pieces)
         start_time = time.time()
         board.zobrist = self.zobrist_hash(board)
         score, bestBoard = self.alpha_beta_Negamax(board, depth, alpha, beta)
         bestBoard.old_pieces = old_pieces
         board = copy.deepcopy(bestBoard)
-
         if self.reset_table:
             self.clear_table()
+        print(self.pruningMoves)
         self.pruningMoves = dict()
         elapsed_time = time.time() - start_time
 
-        print(f"Tempo impiegato da alpha_beta_Negamax: {elapsed_time:.4f} secondi")
-        print(f"Numero di mosse: {board.move_number}")
-        print(f"score: {score}")
+        print(f"Time taken by alpha_beta_Negamax: {elapsed_time:.4f} seconds")
+        print(f"Number of moves: {board.move_number}")
+        print(f"Score: {score}")
 
         return board
