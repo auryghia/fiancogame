@@ -15,7 +15,7 @@ MAX = math.inf
 RESET_TABLE = True
 ORDENING = {
     "killer_moves": True,
-    "pruning_moves": False,
+    "pruning_moves": True,
     "history_heuristic": False,
     "captures": False,
 }

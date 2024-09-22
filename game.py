@@ -36,7 +36,6 @@ while running:
                 # reset game
                 env.board_obj = Board(turn=TURN, team=TEAM, players=PLAYERS)
                 env.board_obj.create_boards()
-                env.board_obj.number_creation()
 
             # automatic player
             if event.key == pygame.K_n:
