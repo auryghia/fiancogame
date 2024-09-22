@@ -31,7 +31,7 @@ class Engine:
         self.size = size
         self.reset_table = reset_table
         self.percentage = p
-        """
+
         dtype = np.dtype(
             [
                 ("zobrist", np.int64),
@@ -40,14 +40,12 @@ class Engine:
                 ("upper_bound", np.float64),
                 ("lower_bound", np.float64),
                 ("depth", np.int32),
-                ("move", object),
+                ("best_move", object),
             ]
         )
 
-        self.t_table = np.empty(self.size, dtype=dict)
-        for i in range(self.size):
-            self.t_table[i] = dtype
-        """
+        self.t_table = np.zeros(self.size, dtype=dtype)
+
         self.num_elements = 0
         self.pruningMoves = dict()
         self.killerMoves = defaultdict(lambda: OrderedDict())
@@ -73,13 +71,11 @@ class Engine:
         Returns:
             (float, Board): The best score and the corresponding board state.
         """
-        """
 
         old_alpha = alpha
         zobrist_key = board.zobrist
         board.depth = depth
         ttEntry = self.get(zobrist_key)
-        print(ttEntry)
         if ttEntry["depth"] != -1:
             if ttEntry["flag"] == "EXACT":
                 # print("Transposition table hit")
@@ -98,7 +94,7 @@ class Engine:
 
             if alpha >= beta:
                 return ttEntry["score"], board
-        """
+
         if depth == 0:
             board.turn = 2 if board.turn == 1 else 1
             board.utility_function()
@@ -129,13 +125,13 @@ class Engine:
                     self.add_pruning_move((board.zobrist, b.zobrist))
 
                 break
-        """
+
         board.flag = (
             "EXACT"
             if old_alpha < score < beta
             else ("UPPER_BOUND" if score <= old_alpha else "LOWER_BOUND")
         )
-        """
+
         board.upper_bound = alpha
         board.lower_bound = beta
         board.best_move = bestMove
@@ -143,9 +139,9 @@ class Engine:
         board.bestBoard = bestBoard
         if ORDENING["history_heuristic"]:
             self.add_history_heuristic((board.zobrist, board.bestBoard.zobrist), score)
-        """
+
         self.insert(board)
-        """
+
         return score, board.bestBoard
 
     def next_moves(self, board: Board):
@@ -273,19 +269,17 @@ class Engine:
 
         return zobrist_value
 
+    def hash_index(self, zobrist_value):
+        return zobrist_value % self.size
+
     def insert(self, board: Board):
-        index = self.hash_function(board.zobrist)
-        cell = self.t_table[index]
+        if self.num_elements == self.size:
+            self.change_table()
 
-        for k in cell:
-            if k == board.zobrist:
-                return
-        self.t_table[index][board.zobrist] = self.create_entry(board)
+        # board.zobrist = self.zobrist_hash(board)
+        index = self.hash_index(board.zobrist)
 
-    def create_entry(self, board: Board):
-        """Create a transposition table entry for the given board state."""
-
-        entry = np.array(
+        self.t_table[index] = np.array(
             [
                 (
                     board.zobrist,
@@ -299,18 +293,37 @@ class Engine:
             ],
             dtype=self.t_table.dtype,
         )
-        return entry
+
+        self.num_elements += 1
 
     def get(self, key):
-        index = self.hash_function(key)
-        cell = self.t_table[index]
-        for k in cell:
-            if k == key:
-                return cell[k]
-        return {"depth": -1, "zobrist": 0}
+        index = self.hash_index(key)
+        entry = self.t_table[index]
+        if entry["depth"] == -1:
+            return {"depth": -1}
+        return entry
+
+    def change_table(self):
+        new_table = np.zeros(self.size, dtype=self.t_table.dtype)
+        all_elements = []
+        for i in range(self.size):
+            entry = self.t_table[i]
+            if entry["depth"] != -1:
+                key = self.hash_index(entry["zobrist"])
+                all_elements.append((key, entry))
+
+        largest_elements = heapq.nlargest(
+            int(self.size * self.percentage), all_elements, key=lambda x: x[1]["depth"]
+        )
+
+        for zobrist, entry in largest_elements:
+            new_index = self.hash_index(zobrist) % self.size
+            new_table[new_index] = entry
+
+        self.table = new_table
 
     def clear_table(self):
-        self.t_table = [[] for _ in range(self.size)]
+        self.t_table = np.zeros(self.size, dtype=self.t_table.dtype)
         self.num_elements = 0
 
     def think(self, board: Board, depth, alpha, beta):
@@ -322,7 +335,7 @@ class Engine:
         board = copy.deepcopy(bestBoard)
         if self.reset_table:
             self.clear_table()
-        print(self.pruningMoves)
+
         self.pruningMoves = dict()
         elapsed_time = time.time() - start_time
 

@@ -14,7 +14,7 @@ MIN = -math.inf
 MAX = math.inf
 RESET_TABLE = True
 ORDENING = {
-    "killer_moves": False,
+    "killer_moves": True,
     "pruning_moves": False,
     "history_heuristic": False,
     "captures": False,
