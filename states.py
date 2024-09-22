@@ -168,51 +168,27 @@ class Board:
     def create_boards(
         self,
     ):
-        l = 1
-        number = 1
-        for i in range(4):
-            if i == 0:
-                self.board[0, 0:9] = 2 if self.team == 1 else 1
-                for col in range(9):
-                    piece = Piece(0, col, 2 if self.team == 1 else 1)
-                    self.pieces.append(piece)
-                    piece.id = number
-                    number += 1
-            else:
-                j, m = l, 9 - l - 1
-                self.board[i, j] = 2 if self.team == 1 else 1
-                self.board[i, m] = 2 if self.team == 1 else 1
-                piece = Piece(i, j, 2 if self.team == 1 else 1)
-                piece.id = number
-                number += 1
-                self.pieces.append(piece)
-                piece = Piece(i, m, 2 if self.team == 1 else 1)
-                piece.id = number
-                number += 1
-                self.pieces.append(piece)
-                l += 1
-        l = 3
-        for i in range(5, 9):
-            if i == 8:
-                self.board[8, 0:9] = 1 if self.team == 1 else 2
-                for col in range(9):
-                    piece = Piece(8, col, 1 if self.team == 1 else 2)
-                    piece.id = number
-                    number += 1
-                    self.pieces.append(piece)
-            else:
-                p, f = l, 9 - l - 1
-                self.board[i, p] = 1 if self.team == 1 else 2
-                self.board[i, f] = 1 if self.team == 1 else 2
-                piece = Piece(i, p, 1 if self.team == 1 else 2)
-                piece.id = number
-                number += 1
-                self.pieces.append(piece)
-                piece = Piece(i, f, 1 if self.team == 1 else 2)
-                piece.id = number
-                number += 1
-                self.pieces.append(piece)
-                l -= 1
+        # Black
+        board = self.board
+        board[0, :] = 2
+        board[1, 1] = 2
+        board[1, 7] = 2
+        board[2, 2] = 2
+        board[2, 6] = 2
+        board[3, 3] = 2
+        board[3, 5] = 2
+
+        # White
+        board[8, :] = 1
+        board[7, 1] = 1
+        board[7, 7] = 1
+        board[6, 2] = 1
+        board[6, 6] = 1
+        board[5, 3] = 1
+        board[5, 5] = 1
+
+        # Create pieces
+        self.create_pieces()
 
     def change_board(self):
         self.board = np.zeros((9, 9), dtype=int)
@@ -232,7 +208,6 @@ class Board:
         new_board = Board(team=self.team, turn=self.turn)
         new_board.board = copy.deepcopy(self.board)
         new_board.create_pieces()
-        new_board.handle_capture()
         new_board.move_number = self.move_number
         new_board.win = self.win
         new_board.game_over = self.game_over
@@ -242,7 +217,6 @@ class Board:
     def count_threats(self, piece: Piece) -> int:
         num_threats = 0
         direction = -1 if piece.team == self.team else 1
-
         if (
             piece.i + direction < 9
             and piece.i + direction >= 0
@@ -256,9 +230,7 @@ class Board:
         return num_threats
 
     def move_pieces(self, oi, oj, i, j):
-
         for piece in self.pieces:
-
             if piece.i == oi and piece.j == oj:
                 piece.is_selected = True
 
@@ -287,50 +259,46 @@ class Board:
         self.move_number += 1
 
     def handle_capture(self):
+        """Handles the capture logic for available pieces."""
         self.capture_available = False
 
         for piece in self.pieces:
             if piece.team == self.turn:
-                if piece.team == self.team:
-                    piece.possible_moves_f(self.board, -1)
-                else:
-                    piece.possible_moves_f(self.board, +1)
+                direction = -1 if piece.team == self.team else +1
+                piece.possible_moves_f(self.board, direction)
 
-                if (
-                    (
-                        piece.i - 2 >= 0
-                        and piece.j - 2 >= 0
-                        and piece.possibleMoves[(piece.i - 2, piece.j - 2)] == True
-                    )
-                    or (
-                        piece.i - 2 >= 0
-                        and piece.j + 2 < 9
-                        and piece.possibleMoves[(piece.i - 2, piece.j + 2)] == True
-                    )
-                    or (
-                        piece.i + 2 < 9
-                        and piece.j - 2 >= 0
-                        and piece.possibleMoves[(piece.i + 2, piece.j - 2)] == True
-                    )
-                    or (
-                        piece.i + 2 < 9
-                        and piece.j + 2 < 9
-                        and piece.possibleMoves[(piece.i + 2, piece.j + 2)] == True
-                    )
-                ):
+                if self.is_capture_possible(piece):
                     self.capture_available = True
-            if self.capture_available:
-                for p in self.pieces:
-                    if p.team == self.turn:
 
-                        for move in p.possibleMoves:
-                            if abs(move[0] - p.i) != 2 or abs(move[1] - p.j) != 2:
-                                p.possibleMoves[move] = False
+        if self.capture_available:
+            self.disable_non_capture_moves()
+
+    def is_capture_possible(self, piece):
+        """Checks if a piece can make a capture."""
+        for di in [-2, 2]:
+            for dj in [-2, 2]:
+                new_i = piece.i + di
+                new_j = piece.j + dj
+                if (
+                    (0 <= new_i < 9)
+                    and (0 <= new_j < 9)
+                    and piece.possibleMoves.get((new_i, new_j))
+                ):
+                    return True
+        return False
+
+    def disable_non_capture_moves(self):
+        """Disables invalid moves if a capture is available."""
+        for piece in self.pieces:
+            if piece.team == self.turn:
+                for move in list(piece.possibleMoves.keys()):
+                    if abs(move[0] - piece.i) != 2 or abs(move[1] - piece.j) != 2:
+                        piece.possibleMoves[move] = False
 
     def utility_function(self) -> None:
         POSITION_WEIGHT = 150
         PIECE_WEIGHT = 30
-        VULNERABILITY_PENALTY = 60  # Penalty for vulnerability
+        VULNERABILITY_PENALTY = 60
         num_opponent_pieces = 0
         num_pieces = 0
         position_score = 0
@@ -348,7 +316,6 @@ class Board:
 
             if num_threats > 0:
                 position_score -= VULNERABILITY_PENALTY * (1 - 0.1**num_threats)
-            # Penalize for threats
 
             position_score += (
                 (piece.i) * POSITION_WEIGHT

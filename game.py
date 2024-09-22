@@ -46,6 +46,7 @@ while running:
                         env.board_obj = engine.think(env.board_obj, DEPTH, MIN, MAX)
 
             elif event.key == K_UP:
+
                 DEPTH += 1
                 print(f"New Depth level: {DEPTH}")
 

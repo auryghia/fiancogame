@@ -5,8 +5,6 @@ import time
 import copy
 import heapq
 from collections import defaultdict, OrderedDict
-from typing import List, Tuple
-from states import Piece
 from parameters import IMP_MOVES_SIZE, ORDENING
 
 
@@ -95,18 +93,6 @@ class Engine:
             value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
 
             value = -value
-            # print(
-            #     value,
-            #     "value",
-            #     score,
-            #     "score",
-            #     alpha,
-            #     "alpha",
-            #     beta,
-            #     "beta",
-            #     depthore = score,
-            #     "depth",
-            # )
 
             if value > score:
                 score = value
