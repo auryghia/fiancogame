@@ -99,6 +99,7 @@ class Engine:
             board.utility_function()
             board.turn = 2 if board.turn == 1 else 1
             board.utility = -board.utility
+            print(board.utility)
             return board.utility, board
 
         score = -math.inf
