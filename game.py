@@ -4,6 +4,10 @@ from states import Board, PygameEnviroment
 from engine import Engine
 from parameters import *
 import copy
+import cProfile
+import pstats
+import io
+
 
 pygame.init()
 pygame.display.set_caption(GAME_TITLE)
@@ -41,8 +45,20 @@ while running:
             if event.key == pygame.K_n:
                 if env.board_obj.players[env.board_obj.turn] == "automatic":
                     if env.board_obj.turn == env.board_obj.team:
+                        pr = cProfile.Profile()
+                        pr.enable()  # Inizia a profilare
 
                         env.board_obj = engine.think(env.board_obj, DEPTH, MIN, MAX)
+                        pr.disable()  # Ferma la profilazione
+
+                        # Cattura i risultati in un oggetto StringIO
+                        s = io.StringIO()
+                        sortby = (
+                            pstats.SortKey.CUMULATIVE
+                        )  # Puoi cambiare il criterio di ordinamento
+                        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+                        ps.print_stats()
+                        print(s.getvalue())
 
             elif event.key == K_UP:
 
@@ -56,42 +72,31 @@ while running:
         else:
             # Manual player
             if env.board_obj.players[env.board_obj.turn] == "manually":
+                env.board_obj.handle_capture()
 
-                if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.type == pygame.MOUSEBUTTONUP:
                     mouse_x, mouse_y = event.pos
-                    col = mouse_x // CELL_SIZE
-                    row = mouse_y // CELL_SIZE
-                    for piece in env.board_obj.pieces:
-                        if piece.team == env.board_obj.turn:
-                            if piece.i == row and piece.j == col:
-                                if not piece.is_selected:
-                                    for p in env.board_obj.pieces:
-                                        p.is_selected = False
-
-                                    piece.is_selected = True
-                                    env.board_obj.handle_capture()
-                                else:
-                                    piece.is_selected = False
-
+                    env.handle_click((mouse_x, mouse_y), CELL_SIZE)
                 elif event.type == pygame.MOUSEBUTTONUP:
                     mouse_x, mouse_y = event.pos
                     col = mouse_x // CELL_SIZE
                     row = mouse_y // CELL_SIZE
-                    for piece in env.board_obj.pieces:
-                        if piece.is_selected and piece.team == env.board_obj.turn:
-                            if (
-                                row,
-                                col,
-                            ) in piece.possibleMoves and piece.possibleMoves[
-                                (row, col)
-                            ]:
-                                if 0 <= row < GRID_SIZE and 0 <= col < GRID_SIZE:
-                                    old_pieces = copy.deepcopy(env.board_obj.pieces)
-                                    env.board_obj.move_pieces(
-                                        piece.i, piece.j, row, col
-                                    )
-                                    piece.is_selected = False
-                                    env.board_obj.old_pieces = old_pieces
+                    for i in range(9):
+                        for j in range(9):
+                            if row == i and col == j:
+                                if env.board_obj.selected_piece:
 
+                                    if (
+                                        row,
+                                        col,
+                                    ) in env.board_obj.possible_moves[
+                                        (i, j)
+                                    ] and env.board_obj.possible_moves[(i, j)][
+                                        (row, col)
+                                    ]:
+                                        env.board_obj.move_pieces(i, j, row, col)
+
+                                if 0 <= row < GRID_SIZE and 0 <= col < GRID_SIZE:
+                                    env.board_obj.move_pieces(i, j, row, col)
 
 pygame.quit()

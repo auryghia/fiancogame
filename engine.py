@@ -5,7 +5,7 @@ import time
 import copy
 import heapq
 from collections import defaultdict, OrderedDict
-from parameters import IMP_MOVES_SIZE, ORDENING
+from parameters import IMP_MOVES_SIZE, ORDENING, TT
 
 
 class Engine:
@@ -71,29 +71,28 @@ class Engine:
         Returns:
             (float, Board): The best score and the corresponding board state.
         """
+        if TT:
+            old_alpha = alpha
+            zobrist_key = board.zobrist
+            board.depth = depth
+            ttEntry = self.get(zobrist_key)
+            if ttEntry["depth"] != -1:
+                if ttEntry["flag"] == "EXACT":
+                    # print("Transposition table hit")
+                    oi, oj, i, j = ttEntry["best_move"]
+                    newBoard = board.create_new_board(oi, oj, i, j)
+                    newBoard.zobrist = self.zobrist_hash(newBoard)
+                    return ttEntry["score"], newBoard
+                elif ttEntry["flag"] == "LOWER_BOUND":
 
-        old_alpha = alpha
-        zobrist_key = board.zobrist
-        board.depth = depth
-        ttEntry = self.get(zobrist_key)
-        if ttEntry["depth"] != -1:
-            if ttEntry["flag"] == "EXACT":
-                # print("Transposition table hit")
+                    alpha = max(alpha, ttEntry["score"])
+                    board.lower_bound = alpha
+                elif ttEntry["flag"] == "UPPER_BOUND":
+                    beta = min(beta, ttEntry["score"])
+                    board.upper_bound = beta
 
-                oi, oj, i, j = ttEntry["best_move"]
-                newBoard = board.create_new_board(oi, oj, i, j)
-                newBoard.zobrist = self.zobrist_hash(newBoard)
-                return ttEntry["score"], newBoard
-            elif ttEntry["flag"] == "LOWER_BOUND":
-
-                alpha = max(alpha, ttEntry["score"])
-                board.lower_bound = alpha
-            elif ttEntry["flag"] == "UPPER_BOUND":
-                beta = min(beta, ttEntry["score"])
-                board.upper_bound = beta
-
-            if alpha >= beta:
-                return ttEntry["score"], board
+                if alpha >= beta:
+                    return ttEntry["score"], board
 
         if depth == 0:
             board.turn = 2 if board.turn == 1 else 1
@@ -104,13 +103,11 @@ class Engine:
 
         score = -math.inf
         boards = self.next_moves(board)
-
         for b, oi, oj, i, j in boards:
 
             value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
 
             value = -value
-
             if value > score:
                 score = value
                 bestMove = (oi, oj, i, j)
@@ -125,22 +122,24 @@ class Engine:
                     self.add_pruning_move((board.zobrist, b.zobrist))
 
                 break
-
-        board.flag = (
-            "EXACT"
-            if old_alpha < score < beta
-            else ("UPPER_BOUND" if score <= old_alpha else "LOWER_BOUND")
-        )
+        if TT:
+            board.flag = (
+                "EXACT"
+                if old_alpha < score < beta
+                else ("UPPER_BOUND" if score <= old_alpha else "LOWER_BOUND")
+            )
 
         board.upper_bound = alpha
         board.lower_bound = beta
         board.best_move = bestMove
         board.score = score
         board.bestBoard = bestBoard
+
         if ORDENING["history_heuristic"]:
             self.add_history_heuristic((board.zobrist, board.bestBoard.zobrist), score)
 
-        self.insert(board)
+        if TT:
+            self.insert(board)
 
         return score, board.bestBoard
 
@@ -160,40 +159,46 @@ class Engine:
         turn = board.turn
         killerMoves, pruningMoves, histHeuristic, captMoves = [], [], [], []
 
-        for piece in board.pieces:
+        for i in range(9):
+            for j in range(9):
+                if board.board[i, j] == turn:
+                    for move in board.possible_moves[(i, j)]:
+                        if board.possible_moves[(i, j)][move]:
+                            newBoardObj = board.create_new_board(i, j, move[0], move[1])
+                            newBoardObj.zobrist = self.zobrist_hash(newBoardObj)
 
-            if piece.team == turn:
-                for move in piece.possibleMoves:
-                    if piece.possibleMoves[move]:
-                        i, j = piece.i, piece.j
-                        newBoardObj = board.create_new_board(i, j, move[0], move[1])
-                        newBoardObj.zobrist = self.zobrist_hash(newBoardObj)
-
-                        if (
-                            ORDENING["killer_moves"]
-                            and board.depth in self.killerMoves
-                            and (board.zobrist, newBoardObj.zobrist)
-                            in self.killerMoves[board.depth]
-                        ):
-                            killerMoves.append((newBoardObj, i, j, move[0], move[1]))
-                        elif ORDENING["captures"] and newBoardObj.capture_available:
-                            captMoves.append((newBoardObj, i, j, move[0], move[1]))
-                        elif (
-                            ORDENING["history_heuristic"] and board.zobrist,
-                            newBoardObj.zobrist,
-                        ) in self.histHeuristic:
-                            histHeuristic.append((newBoardObj, i, j, move[0], move[1]))
-                        elif (
-                            ORDENING["pruning_moves"]
-                            and (board.zobrist, newBoardObj.zobrist)
-                            in self.pruningMoves
-                        ):
-                            pruningMoves.append((newBoardObj, i, j, move[0], move[1]))
-                        else:
-                            boards.append((newBoardObj, i, j, move[0], move[1]))
-
-        self.sort_moves(histHeuristic, board, self.histHeuristic)
-        self.sort_moves(pruningMoves, board, self.pruningMoves)
+                            if (
+                                ORDENING["killer_moves"]
+                                and board.depth in self.killerMoves
+                                and (board.zobrist, newBoardObj.zobrist)
+                                in self.killerMoves[board.depth]
+                            ):
+                                killerMoves.append(
+                                    (newBoardObj, i, j, move[0], move[1])
+                                )
+                            elif ORDENING["captures"] and newBoardObj.capture_available:
+                                captMoves.append((newBoardObj, i, j, move[0], move[1]))
+                            elif (
+                                ORDENING["history_heuristic"] and board.zobrist,
+                                newBoardObj.zobrist,
+                            ) in self.histHeuristic:
+                                histHeuristic.append(
+                                    (newBoardObj, i, j, move[0], move[1])
+                                )
+                            elif (
+                                ORDENING["pruning_moves"]
+                                and (board.zobrist, newBoardObj.zobrist)
+                                in self.pruningMoves
+                            ):
+                                pruningMoves.append(
+                                    (newBoardObj, i, j, move[0], move[1])
+                                )
+                            else:
+                                boards.append((newBoardObj, i, j, move[0], move[1]))
+        if ORDENING["killer_moves"]:
+            self.sort_moves(killerMoves, board, self.killerMoves[board.depth])
+        if ORDENING["history_heuristic"]:
+            self.sort_moves(histHeuristic, board, self.histHeuristic)
 
         return killerMoves + captMoves + pruningMoves + histHeuristic + boards
 
@@ -245,7 +250,8 @@ class Engine:
         else:
             if len(self.histHeuristic) >= self.max_size:
                 self.trim_history_heuristic()
-                print("Trimming history")
+
+                ("Trimming history")
 
             self.histHeuristic[move] = score
 
@@ -305,6 +311,7 @@ class Engine:
 
     def change_table(self):
         new_table = np.zeros(self.size, dtype=self.t_table.dtype)
+        print("Optimizing table")
         all_elements = []
         for i in range(self.size):
             entry = self.t_table[i]
@@ -327,11 +334,9 @@ class Engine:
         self.num_elements = 0
 
     def think(self, board: Board, depth, alpha, beta):
-        old_pieces = copy.deepcopy(board.pieces)
         start_time = time.time()
         board.zobrist = self.zobrist_hash(board)
         score, bestBoard = self.alpha_beta_Negamax(board, depth, alpha, beta)
-        bestBoard.old_pieces = old_pieces
         board = copy.deepcopy(bestBoard)
         if self.reset_table:
             self.clear_table()
@@ -342,5 +347,6 @@ class Engine:
         print(f"Time taken by alpha_beta_Negamax: {elapsed_time:.4f} seconds")
         print(f"Number of moves: {board.move_number}")
         print(f"Score: {score}")
+        print(f"depth: {depth}")
 
         return board
