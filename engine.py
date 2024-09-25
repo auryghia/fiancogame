@@ -72,6 +72,7 @@ class Engine:
     def alpha_beta_Negamax(self, board: Board, depth: int, alpha: float, beta: float):
 
         if depth == 0:
+<<<<<<< HEAD
             if board.turn == board.team:
                 board.turn = 2 if board.turn == 1 else 1
                 board.utility_function()
@@ -82,6 +83,13 @@ class Engine:
                 board.turn = 2 if board.turn == 1 else 1
                 board.utility_function()
                 board.turn = 2 if board.turn == 1 else 1
+=======
+            board.turn = 2 if board.turn == 1 else 1
+            board.utility_function()
+            board.turn = 2 if board.turn == 1 else 1
+            board.utility = -board.utility
+            print(board.utility)
+>>>>>>> d93ab65dfaac7477b2a2fd457891427197cb4960
             return board.utility, board
 
         score = -math.inf

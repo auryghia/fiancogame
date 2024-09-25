@@ -13,8 +13,8 @@ SIZE = int(2**19)
 IMP_MOVES_SIZE = 4000
 PERCENTAGE = 0.75
 DEPTH = 3
-MIN = -32000
-MAX = 32000
+MIN = -math.inf
+MAX = math.inf
 RESET_TABLE = True
 ORDENING = {
     "killer_moves": True,
