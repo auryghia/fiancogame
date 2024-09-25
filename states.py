@@ -102,21 +102,34 @@ class Board:
         if 0 <= i + 2 * direction < 9:
             # Check left capture
             if j - 2 >= 0:
-                if (
-                    self.board[i + direction][j - 1] == 2
-                    if self.board[i, j] == 1
-                    else 1 and self.board[i + 2 * direction][j - 2] == 0
-                ):
-                    moves_dict[(i + 2 * direction, j - 2)] = True
+                if self.board[i, j] == 1:
+                    if (
+                        self.board[i + direction][j - 1] == 2
+                        and self.board[i + 2 * direction][j - 2] == 0
+                    ):
+                        moves_dict[(i + 2 * direction, j - 2)] = True
+                elif self.board[i, j] == 2:
+                    if (
+                        self.board[i + direction][j - 1] == 1
+                        and self.board[i + 2 * direction][j - 2] == 0
+                    ):
+                        moves_dict[(i + 2 * direction, j - 2)] = True
 
-            # Check right capture
-        if j + 2 < 9:
-            if (
-                self.board[i + direction][j + 1] == 2
-                if self.board[i, j] == 1
-                else 1 and self.board[i + 2 * direction][j + 2] == 0
-            ):
-                moves_dict[(i + 2 * direction, j + 2)] = True
+        # Check right capture
+        if 0 <= i + 2 * direction < 9:
+            if j + 2 < 9:
+                if self.board[i, j] == 1:
+                    if (
+                        self.board[i + direction][j + 1] == 2
+                        and self.board[i + 2 * direction][j + 2] == 0
+                    ):
+                        moves_dict[(i + 2 * direction, j + 2)] = True
+                elif self.board[i, j] == 2:
+                    if (
+                        self.board[i + direction][j + 1] == 1
+                        and self.board[i + 2 * direction][j + 2] == 0
+                    ):
+                        moves_dict[(i + 2 * direction, j + 2)] = True
 
         return moves_dict
 
@@ -166,27 +179,34 @@ class Board:
                     direction = -1 if self.board[i, j] == self.team else 1
                     possible_moves = self.possible_moves_f(i, j)
                     self.possible_moves[(i, j)] = possible_moves
-                    # print(self.board, self.possible_moves[(i, j)], i, j)
-                    if possible_moves[(i + 2 * direction, j - 2)]:
+
+                    if self.is_capture_possible(i, j):
                         self.capture_available = True
-                        capture_pieces.append((i, j))
 
         if self.capture_available:
-            for el in capture_pieces:
-                self.disable_non_capture_moves(el[0], el[1])
+            self.disable_non_capture_moves()
 
-    def disable_non_capture_moves(self, i, j):
-        """Disables invalid moves if a capture is available."""
-        for x in range(9):
-            for y in range(9):
-                if self.board[x, y] == self.turn:
-                    for move in list(
-                        self.possible_moves[(x, y)].keys()
-                    ):  # Usare list() per evitare errori durante l'iterazione
-                        if self.possible_moves[(x, y)][move]:
-                            # Verifica se la mossa non è di cattura
-                            if abs(move[0] - x) != 2 or abs(move[1] - y) != 2:
-                                self.possible_moves[(x, y)][move] = False
+    def is_capture_possible(self, i, j):
+        """Checks if a piece can make a capture."""
+        for di in [-2, 2]:
+            for dj in [-2, 2]:
+                new_i = i + di
+                new_j = j + dj
+                if (
+                    (0 <= new_i < 9)
+                    and (0 <= new_j < 9)
+                    and self.possible_moves[(i, j)][(new_i, new_j)]
+                ):
+                    return True
+        return False
+
+    def disable_non_capture_moves(self):
+        for i in range(9):
+            for j in range(9):
+                if self.board[i, j] == self.turn:
+                    for move in list(self.possible_moves[(i, j)].keys()):
+                        if abs(move[0] - i) != 2 or abs(move[1] - j) != 2:
+                            self.possible_moves[(i, j)][move] = False
 
     def utility_function(self) -> None:
         POSITION_WEIGHT = 150
@@ -197,36 +217,32 @@ class Board:
         position_score = 0
         for i in range(9):
             for j in range(9):
+                if self.board[i, j] != 0:
+                    if self.board[i, j] == self.team and i == 0:
+                        self.utility = math.inf
+                        self.win = True
+                        return
+                    elif self.board[i, j] == 2 and self.team == 1 and i == 8:
+                        # Aggiungi qui la logica per gestire il game over
 
-                if self.board[i, j] == self.team and i == 0:
-                    self.utility = math.inf
-                    self.win = True
-                    return
-                elif (self.board[i, j] == 2 and self.team == 1 and i == 8) or (
-                    self.board[i, j] == 1 and self.team == 2 and i == 0
-                ):
-                    # Aggiungi qui la logica per gestire il game over
+                        print("Game Over")
+                        self.utility = -math.inf
+                        self.game_over = True
 
-                    print("Game Over")
-                    self.utility = -math.inf
-                    self.game_over = True
-                    return
+                    num_threats = self.count_threats(i, j)
+                    if num_threats > 0:
+                        position_score -= VULNERABILITY_PENALTY * (1 - 0.1**num_threats)
 
-            num_threats = self.count_threats(i, j)
+                    position_score += (
+                        i * POSITION_WEIGHT
+                        if self.turn != self.team
+                        else (8 - i) * POSITION_WEIGHT
+                    )
 
-            if num_threats > 0:
-                position_score -= VULNERABILITY_PENALTY * (1 - 0.1**num_threats)
-
-            position_score += (
-                (i) * POSITION_WEIGHT
-                if self.turn != self.team
-                else (8 - i) * POSITION_WEIGHT
-            )
-
-            if self.board[i, j] == self.turn:
-                num_pieces += 1
-            else:
-                num_opponent_pieces += 1
+                    if self.board[i, j] == self.turn:
+                        num_pieces += 1
+                    elif self.board[i, j] != self.turn:
+                        num_opponent_pieces += 1
 
         reduction_factor = max(0, 1 - (1 / self.move_number))
         self.utility = position_score
@@ -240,6 +256,7 @@ class Board:
         self.turn = 1 if self.turn == 2 else 2
         move = self.moves.pop()
         self.move_pieces(move[2], move[3], move[0], move[1])
+        self.turn = 1 if self.turn == 2 else 2
 
 
 class PygameEnviroment:  # class for the pygame enviroment
@@ -248,19 +265,6 @@ class PygameEnviroment:  # class for the pygame enviroment
         self.selected_piece = (
             None  # Aggiungi l'attributo per tenere traccia del pezzo selezionato
         )
-
-    def handle_click(self, mouse_pos, cell_size):
-        row = (
-            mouse_pos[1] // cell_size
-        )  # Ottieni la riga basata sulla posizione del mouse
-        col = (
-            mouse_pos[0] // cell_size
-        )  # Ottieni la colonna basata sulla posizione del mouse
-
-        if 0 <= row < 9 and 0 <= col < 9:
-            piece = self.board_obj.board[row, col]  # Get the piece in the square
-            if piece in [1, 2]:  # Check if there's a selectable piece
-                self.selected_piece = (row, col)  # Select the piece
 
     def show(self, screen, screen_size, grid_size, cell_size):
         font = pygame.font.Font(None, 36)
@@ -287,23 +291,29 @@ class PygameEnviroment:  # class for the pygame enviroment
                         4 if square == 1 else 0,
                     )
 
-        if self.selected_piece:
-            row, col = self.selected_piece
-            piece = self.board_obj.board[row, col]  # Ottieni il pezzo selezionato
-            if piece in [1, 2]:  # Verifica che sia ancora un pezzo valido
-                possible_moves = self.board_obj.possible_moves[
-                    (row, col)
-                ]  # Ottieni le mosse possibili
+        if self.selected_piece is not None:
+            pygame.draw.circle(
+                screen,
+                purple_color,
+                (
+                    self.selected_piece[1] * cell_size + cell_size / 2,
+                    self.selected_piece[0] * cell_size + cell_size / 2,
+                ),
+                cell_size // 5 - 5 + 4,
+            )
 
-                for move in possible_moves:
+            for move in self.board_obj.possible_moves[
+                (self.selected_piece[0], self.selected_piece[1])
+            ]:
+
+                if self.board_obj.possible_moves[
+                    (self.selected_piece[0], self.selected_piece[1])
+                ][move]:
                     center = (
-                        move[1] * cell_size
-                        + cell_size // 2,  # Calcola il centro della cella
+                        move[1] * cell_size + cell_size // 2,
                         move[0] * cell_size + cell_size // 2,
                     )
-                    pygame.draw.circle(
-                        screen, (0, 255, 0), center, 15
-                    )  # Disegna i cerchi verdi
+                    pygame.draw.circle(screen, (0, 255, 0), center, 15)
 
         for x in range(0, grid_size, cell_size):
             for y in range(0, grid_size, cell_size):

@@ -6,16 +6,16 @@ GAME_RES = WIDTH, HEIGHT = 900, 720
 GRID_SIZE = 720
 CELL_SIZE = GRID_SIZE // 9
 
-TT = False
+TT = True
 SIZE = 4000
 IMP_MOVES_SIZE = 4000
 PERCENTAGE = 0.75
-DEPTH = 3
-MIN = -math.inf
-MAX = math.inf
+DEPTH = 5
+MIN = -32000
+MAX = 32000
 RESET_TABLE = True
 ORDENING = {
-    "killer_moves": True,
+    "killer_moves": False,
     "pruning_moves": False,
     "history_heuristic": False,
     "captures": False,

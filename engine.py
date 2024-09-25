@@ -6,6 +6,8 @@ import copy
 import heapq
 from collections import defaultdict, OrderedDict
 from parameters import IMP_MOVES_SIZE, ORDENING, TT
+from bitstring import BitArray
+import sys
 
 
 class Engine:
@@ -31,16 +33,17 @@ class Engine:
         self.size = size
         self.reset_table = reset_table
         self.percentage = p
+        self.depth = 0
 
         dtype = np.dtype(
             [
-                ("zobrist", np.int64),
-                ("score", np.float64),
-                ("flag", "U10"),
-                ("upper_bound", np.float64),
-                ("lower_bound", np.float64),
-                ("depth", np.int32),
-                ("best_move", object),
+                ("zobrist", np.str_),  # Se sono stringhe Unicode
+                ("score", np.str_),  # Se i punteggi sono numeri
+                ("flag", np.int64),  # Flag come intero
+                ("upper_bound", np.str_),  # Se i limiti sono numeri
+                ("lower_bound", np.str_),  # Se i limiti sono numeri
+                ("depth", np.str_),  # Depth come intero
+                ("best_move", object),  # Permette oggetti complessi
             ]
         )
 
@@ -72,22 +75,36 @@ class Engine:
             (float, Board): The best score and the corresponding board state.
         """
         if TT:
+            print(self.t_table)
             old_alpha = alpha
             zobrist_key = board.zobrist
             board.depth = depth
             ttEntry = self.get(zobrist_key)
-            if ttEntry["depth"] != -1:
-                if ttEntry["flag"] == "EXACT":
+            default_entry = ("", "", 0, "", "", "", 0)
+
+            if all(
+                ttEntry[field] == default_entry[i]
+                for i, field in enumerate(ttEntry.dtype.names)
+            ):
+                pass
+            else:
+                print("TTENTRY", ttEntry)
+                depth_entry = self.binary_to_num(ttEntry["depth"])
+                if ttEntry["flag"] == 0:
                     # print("Transposition table hit")
-                    oi, oj, i, j = ttEntry["best_move"]
-                    newBoard = board.create_new_board(oi, oj, i, j)
+                    bestMove = ttEntry["best_move"]
+                    bestMove = tuple(
+                        self.binary_to_num(move) for move in (oi, oj, i, j)
+                    )
+                    newBoard = board.create_new_board(*bestMove)
                     newBoard.zobrist = self.zobrist_hash(newBoard)
+
                     return ttEntry["score"], newBoard
-                elif ttEntry["flag"] == "LOWER_BOUND":
+                elif ttEntry["flag"] == 2:
 
                     alpha = max(alpha, ttEntry["score"])
                     board.lower_bound = alpha
-                elif ttEntry["flag"] == "UPPER_BOUND":
+                elif ttEntry["flag"] == 3:
                     beta = min(beta, ttEntry["score"])
                     board.upper_bound = beta
 
@@ -124,9 +141,7 @@ class Engine:
                 break
         if TT:
             board.flag = (
-                "EXACT"
-                if old_alpha < score < beta
-                else ("UPPER_BOUND" if score <= old_alpha else "LOWER_BOUND")
+                1 if old_alpha < score < beta else (2 if score <= old_alpha else 3)
             )
 
         board.upper_bound = alpha
@@ -278,23 +293,60 @@ class Engine:
     def hash_index(self, zobrist_value):
         return zobrist_value % self.size
 
+    def num_to_binary(self, num):
+        sign = "1" if num < 0 else "0"
+        num = abs(num)
+
+        # Se è un numero intero
+        if num.is_integer():
+            return sign + "{0:b}".format(int(num))
+
+        # Parte intera
+        integer_part = int(num)
+        return sign + "{0:b}".format(integer_part)
+
+    def binary_to_num(self, binary):
+        print(binary, type(binary))
+        b = BitArray(bin=binary)
+        if binary[0] == "1":
+            return -b
+        else:
+            return b
+
     def insert(self, board: Board):
         if self.num_elements == self.size:
             self.change_table()
 
         # board.zobrist = self.zobrist_hash(board)
+
         index = self.hash_index(board.zobrist)
+
+        score = self.num_to_binary(board.score)
+        upper_bound = self.num_to_binary(board.upper_bound)
+        lower_bound = self.num_to_binary(board.lower_bound)
+        best_move = tuple(self.num_to_binary(move) for move in board.best_move)
+        depth = self.num_to_binary(board.depth)
+        zobrist = self.num_to_binary(board.zobrist)
+        # print(
+        #     type(zobrist),
+        #     type(score),
+        #     type(upper_bound),
+        #     type(lower_bound),
+        #     type(depth),
+        #     type(best_move),
+        #     board.flag,
+        # )
 
         self.t_table[index] = np.array(
             [
                 (
-                    board.zobrist,
-                    board.score,
+                    zobrist,
+                    score,
                     board.flag,
-                    board.upper_bound,
-                    board.lower_bound,
-                    board.depth,
-                    board.best_move,
+                    upper_bound,
+                    lower_bound,
+                    depth,
+                    best_move,
                 )
             ],
             dtype=self.t_table.dtype,
@@ -338,6 +390,7 @@ class Engine:
         board.zobrist = self.zobrist_hash(board)
         score, bestBoard = self.alpha_beta_Negamax(board, depth, alpha, beta)
         board = copy.deepcopy(bestBoard)
+        print(sys.getsizeof(self.t_table) / (1024 * 1024), "MB")
         if self.reset_table:
             self.clear_table()
 
