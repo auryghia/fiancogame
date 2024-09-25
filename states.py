@@ -219,14 +219,14 @@ class Board:
             for j in range(9):
                 if self.board[i, j] != 0:
                     if self.board[i, j] == self.team and i == 0:
-                        self.utility = math.inf
+                        self.utility = 1000000
                         self.win = True
                         return
                     elif self.board[i, j] == 2 and self.team == 1 and i == 8:
                         # Aggiungi qui la logica per gestire il game over
 
                         print("Game Over")
-                        self.utility = -math.inf
+                        self.utility = -1000000
                         self.game_over = True
 
                     num_threats = self.count_threats(i, j)
@@ -301,19 +301,22 @@ class PygameEnviroment:  # class for the pygame enviroment
                 ),
                 cell_size // 5 - 5 + 4,
             )
-
-            for move in self.board_obj.possible_moves[
-                (self.selected_piece[0], self.selected_piece[1])
-            ]:
-
-                if self.board_obj.possible_moves[
+            if (
+                self.selected_piece[0],
+                self.selected_piece[1],
+            ) in self.board_obj.possible_moves:
+                for move in self.board_obj.possible_moves[
                     (self.selected_piece[0], self.selected_piece[1])
-                ][move]:
-                    center = (
-                        move[1] * cell_size + cell_size // 2,
-                        move[0] * cell_size + cell_size // 2,
-                    )
-                    pygame.draw.circle(screen, (0, 255, 0), center, 15)
+                ]:
+
+                    if self.board_obj.possible_moves[
+                        (self.selected_piece[0], self.selected_piece[1])
+                    ][move]:
+                        center = (
+                            move[1] * cell_size + cell_size // 2,
+                            move[0] * cell_size + cell_size // 2,
+                        )
+                        pygame.draw.circle(screen, (0, 255, 0), center, 15)
 
         for x in range(0, grid_size, cell_size):
             for y in range(0, grid_size, cell_size):

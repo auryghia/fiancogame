@@ -5,9 +5,8 @@ import time
 import copy
 import heapq
 from collections import defaultdict, OrderedDict
-from parameters import IMP_MOVES_SIZE, ORDENING, TT
-from bitstring import BitArray
 import sys
+from parameters import IMP_MOVES_SIZE, ORDENING, TT, PVS
 
 
 class Engine:
@@ -29,21 +28,19 @@ class Engine:
             reset_table (bool): Whether to reset the transposition table after each move.
         """
         self.proof = 3
-        self.zobrist_keys = []
         self.size = size
         self.reset_table = reset_table
         self.percentage = p
-        self.depth = 0
+        self.collisions = 0
 
         dtype = np.dtype(
             [
-                ("zobrist", np.str_),  # Se sono stringhe Unicode
-                ("score", np.str_),  # Se i punteggi sono numeri
-                ("flag", np.int64),  # Flag come intero
-                ("upper_bound", np.str_),  # Se i limiti sono numeri
-                ("lower_bound", np.str_),  # Se i limiti sono numeri
-                ("depth", np.str_),  # Depth come intero
-                ("best_move", object),  # Permette oggetti complessi
+                ("score", np.int32),
+                ("flag", "U10"),
+                ("upper_bound", np.int32),
+                ("lower_bound", np.int32),
+                ("depth", np.int8),
+                ("best_move", object),
             ]
         )
 
@@ -58,67 +55,37 @@ class Engine:
             0, 2**63 - 1, size=(9, 9, 3), dtype=np.int64
         )
 
-    def hash_function(self, key):
-        return hash(int(str(abs(key))[:6])) % self.size
+    def aspirational_search(self, board: Board, alpha: int, beta: int, depth: int):
+        if depth == 0:
+            # Gestione dell'utility alla profondità zero (caso base)
+            if board.turn == board.team:
+                board.turn = 2 if board.turn == 1 else 1
+                board.utility_function()
+                board.turn = 2 if board.turn == 1 else 1
+                board.utility = -board.utility
+            else:
+                board.turn = 2 if board.turn == 1 else 1
+                board.utility_function()
+                board.turn = 2 if board.turn == 1 else 1
+            return board.utility, board
 
     def alpha_beta_Negamax(self, board: Board, depth: int, alpha: float, beta: float):
-        """
-        Implements the alpha-beta pruning algorithm with Negamax for move search and evaluation.
-
-        Parameters:
-            board (Board): The current board state.
-            depth (int): The depth of the search.
-            alpha (float): Alpha value for pruning.
-            beta (float): Beta value for pruning.
-
-        Returns:
-            (float, Board): The best score and the corresponding board state.
-        """
-        if TT:
-            print(self.t_table)
-            old_alpha = alpha
-            zobrist_key = board.zobrist
-            board.depth = depth
-            ttEntry = self.get(zobrist_key)
-            default_entry = ("", "", 0, "", "", "", 0)
-
-            if all(
-                ttEntry[field] == default_entry[i]
-                for i, field in enumerate(ttEntry.dtype.names)
-            ):
-                pass
-            else:
-                print("TTENTRY", ttEntry)
-                depth_entry = self.binary_to_num(ttEntry["depth"])
-                if ttEntry["flag"] == 0:
-                    # print("Transposition table hit")
-                    bestMove = ttEntry["best_move"]
-                    bestMove = tuple(
-                        self.binary_to_num(move) for move in (oi, oj, i, j)
-                    )
-                    newBoard = board.create_new_board(*bestMove)
-                    newBoard.zobrist = self.zobrist_hash(newBoard)
-
-                    return ttEntry["score"], newBoard
-                elif ttEntry["flag"] == 2:
-
-                    alpha = max(alpha, ttEntry["score"])
-                    board.lower_bound = alpha
-                elif ttEntry["flag"] == 3:
-                    beta = min(beta, ttEntry["score"])
-                    board.upper_bound = beta
-
-                if alpha >= beta:
-                    return ttEntry["score"], board
 
         if depth == 0:
-            board.turn = 2 if board.turn == 1 else 1
-            board.utility_function()
-            board.turn = 2 if board.turn == 1 else 1
-            board.utility = -board.utility
+            if board.turn == board.team:
+                board.turn = 2 if board.turn == 1 else 1
+                board.utility_function()
+                board.turn = 2 if board.turn == 1 else 1
+                board.utility = -board.utility
+
+            else:
+                board.turn = 2 if board.turn == 1 else 1
+                board.utility_function()
+                board.turn = 2 if board.turn == 1 else 1
             return board.utility, board
 
         score = -math.inf
+
         boards = self.next_moves(board)
         for b, oi, oj, i, j in boards:
 
@@ -139,10 +106,81 @@ class Engine:
                     self.add_pruning_move((board.zobrist, b.zobrist))
 
                 break
-        if TT:
-            board.flag = (
-                1 if old_alpha < score < beta else (2 if score <= old_alpha else 3)
-            )
+
+        return score, bestBoard
+
+    def alpha_beta_Negamax_TT(
+        self, board: Board, depth: int, alpha: float, beta: float
+    ):
+        """
+        Implements the alpha-beta pruning algorithm with Negamax for move search and evaluation.
+
+        Parameters:
+            board (Board): The current board state.
+            depth (int): The depth of the search.
+            alpha (float): Alpha value for pruning.
+            beta (float): Beta value for pruning.
+
+        Returns:
+            (float, Board): The best score and the corresponding board state.
+        """
+
+        old_alpha = alpha
+        zobrist_key = board.zobrist
+        board.depth = depth
+        ttEntry = self.get(zobrist_key)
+        if ttEntry["depth"] != -1:
+            if ttEntry["flag"] == "EXACT":
+                oi, oj, i, j = ttEntry["best_move"]
+                newBoard = board.create_new_board(oi, oj, i, j)
+                newBoard.zobrist = self.zobrist_hash(newBoard)
+                return ttEntry["score"], newBoard
+
+            elif ttEntry["flag"] == "LOWER_BOUND":
+
+                alpha = max(alpha, ttEntry["score"])
+                board.lower_bound = alpha
+            elif ttEntry["flag"] == "UPPER_BOUND":
+                beta = min(beta, ttEntry["score"])
+                board.upper_bound = beta
+
+            if alpha >= beta:
+                return ttEntry["score"], board
+
+        if depth == 0:
+            board.turn = 2 if board.turn == 1 else 1
+            board.utility_function()
+            board.turn = 2 if board.turn == 1 else 1
+            board.utility = -board.utility
+            return board.utility, board
+
+        score = -math.inf
+
+        boards = self.next_moves(board)
+        for b, oi, oj, i, j in boards:
+
+            value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
+
+            value = -value
+            if value > score:
+                score = value
+                bestMove = (oi, oj, i, j)
+                bestBoard = b
+
+            alpha = max(alpha, score)
+
+            if alpha >= beta:
+                if ORDENING["killer_moves"]:
+                    self.add_killer_move(depth, (board.zobrist, b.zobrist))
+                if ORDENING["pruning_moves"]:
+                    self.add_pruning_move((board.zobrist, b.zobrist))
+
+                break
+        board.flag = (
+            "EXACT"
+            if old_alpha < score < beta
+            else ("UPPER_BOUND" if score <= old_alpha else "LOWER_BOUND")
+        )
 
         board.upper_bound = alpha
         board.lower_bound = beta
@@ -153,8 +191,7 @@ class Engine:
         if ORDENING["history_heuristic"]:
             self.add_history_heuristic((board.zobrist, board.bestBoard.zobrist), score)
 
-        if TT:
-            self.insert(board)
+        self.insert(board)
 
         return score, board.bestBoard
 
@@ -293,60 +330,22 @@ class Engine:
     def hash_index(self, zobrist_value):
         return zobrist_value % self.size
 
-    def num_to_binary(self, num):
-        sign = "1" if num < 0 else "0"
-        num = abs(num)
-
-        # Se è un numero intero
-        if num.is_integer():
-            return sign + "{0:b}".format(int(num))
-
-        # Parte intera
-        integer_part = int(num)
-        return sign + "{0:b}".format(integer_part)
-
-    def binary_to_num(self, binary):
-        print(binary, type(binary))
-        b = BitArray(bin=binary)
-        if binary[0] == "1":
-            return -b
-        else:
-            return b
-
     def insert(self, board: Board):
-        if self.num_elements == self.size:
-            self.change_table()
 
         # board.zobrist = self.zobrist_hash(board)
-
         index = self.hash_index(board.zobrist)
-
-        score = self.num_to_binary(board.score)
-        upper_bound = self.num_to_binary(board.upper_bound)
-        lower_bound = self.num_to_binary(board.lower_bound)
-        best_move = tuple(self.num_to_binary(move) for move in board.best_move)
-        depth = self.num_to_binary(board.depth)
-        zobrist = self.num_to_binary(board.zobrist)
-        # print(
-        #     type(zobrist),
-        #     type(score),
-        #     type(upper_bound),
-        #     type(lower_bound),
-        #     type(depth),
-        #     type(best_move),
-        #     board.flag,
-        # )
+        if self.t_table[index]["depth"] != 0:
+            self.collisions += 1
 
         self.t_table[index] = np.array(
             [
                 (
-                    zobrist,
-                    score,
+                    board.score,
                     board.flag,
-                    upper_bound,
-                    lower_bound,
-                    depth,
-                    best_move,
+                    board.upper_bound,
+                    board.lower_bound,
+                    board.depth,
+                    board.best_move,
                 )
             ],
             dtype=self.t_table.dtype,
@@ -368,8 +367,7 @@ class Engine:
         for i in range(self.size):
             entry = self.t_table[i]
             if entry["depth"] != -1:
-                key = self.hash_index(entry["zobrist"])
-                all_elements.append((key, entry))
+                all_elements.append((entry))
 
         largest_elements = heapq.nlargest(
             int(self.size * self.percentage), all_elements, key=lambda x: x[1]["depth"]
@@ -388,9 +386,39 @@ class Engine:
     def think(self, board: Board, depth, alpha, beta):
         start_time = time.time()
         board.zobrist = self.zobrist_hash(board)
-        score, bestBoard = self.alpha_beta_Negamax(board, depth, alpha, beta)
+        if TT:
+
+            score, bestBoard = self.alpha_beta_Negamax_TT(board, depth, alpha, beta)
+
+        elif PVS:
+            guess = 0
+            for d in range(depth, 0, -1):
+                print(guess, alpha, beta)
+                alpha = guess - 2000
+                beta = guess + 2000
+                score, bestBoard = self.alpha_beta_Negamax(board, d, alpha, beta)
+                score = -score
+                if score <= alpha:
+                    alpha = -math.inf
+                    beta = score
+                    score, bestBoard = self.alpha_beta_Negamax(board, d, alpha, beta)
+                    score = -score
+
+                elif score >= beta:
+                    alpha = score
+                    beta = math.inf
+                    score, bestBoard = self.alpha_beta_Negamax(board, d, alpha, beta)
+                    score = -score
+
+                guess = score
+
+        else:
+
+            score, bestBoard = self.alpha_beta_Negamax(board, depth, alpha, beta)
         board = copy.deepcopy(bestBoard)
         print(sys.getsizeof(self.t_table) / (1024 * 1024), "MB")
+        print(self.t_table)
+
         if self.reset_table:
             self.clear_table()
 
@@ -401,5 +429,7 @@ class Engine:
         print(f"Number of moves: {board.move_number}")
         print(f"Score: {score}")
         print(f"depth: {depth}")
+        print(f"Best move: {board.best_move}")
+        print(f"Numbers of Collision: {self.collisions}")
 
         return board
