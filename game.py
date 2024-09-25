@@ -75,25 +75,27 @@ while running:
                 new_selection = (y, x)
 
                 if current_selection is not None:
-                    if (
-                        new_selection
-                        in env.board_obj.possible_moves[
-                            (current_selection[0], current_selection[1])
-                        ]
-                    ):
-                        if env.board_obj.possible_moves[
-                            (current_selection[0], current_selection[1])
-                        ][new_selection]:
+                    if current_selection in env.board_obj.possible_moves:
 
-                            env.board_obj.move_pieces(
-                                current_selection[0], current_selection[1], y, x
-                            )
+                        if (
+                            new_selection
+                            in env.board_obj.possible_moves[
+                                (current_selection[0], current_selection[1])
+                            ]
+                        ):
+                            if env.board_obj.possible_moves[
+                                (current_selection[0], current_selection[1])
+                            ][new_selection]:
+
+                                env.board_obj.move_pieces(
+                                    current_selection[0], current_selection[1], y, x
+                                )
 
                     current_selection = None
                     env.selected_piece = None
                 else:
                     if env.board_obj.board[y, x] == env.board_obj.turn:
-                        current_selection = [y, x]
+                        current_selection = (y, x)
                         env.selected_piece = [y, x]
 
 

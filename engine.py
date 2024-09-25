@@ -73,16 +73,10 @@ class Engine:
 
         if depth == 0:
             if board.turn == board.team:
-                board.turn = 2 if board.turn == 1 else 1
                 board.utility_function()
-                board.turn = 2 if board.turn == 1 else 1
-                board.utility = -board.utility
-
             else:
-                board.turn = 2 if board.turn == 1 else 1
                 board.utility_function()
-                board.turn = 2 if board.turn == 1 else 1
-
+                board.utility = -board.utility
             return board.utility, board
 
         score = -math.inf
@@ -152,7 +146,6 @@ class Engine:
             board.turn = 2 if board.turn == 1 else 1
             board.utility_function()
             board.turn = 2 if board.turn == 1 else 1
-            board.utility = -board.utility
             return board.utility, board
 
         score = -math.inf
@@ -393,7 +386,7 @@ class Engine:
 
         elif PVS:
             guess = 0
-            for d in range(depth, 0, -1):
+            for d in range(1, 6):
                 print(guess, alpha, beta)
                 alpha = guess - 2000
                 beta = guess + 2000
