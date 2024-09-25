@@ -301,7 +301,6 @@ class PygameEnviroment:  # class for the pygame enviroment
                 ),
                 cell_size // 5 - 5 + 4,
             )
-<<<<<<< HEAD
             if (
                 self.selected_piece[0],
                 self.selected_piece[1],
@@ -318,20 +317,6 @@ class PygameEnviroment:  # class for the pygame enviroment
                             move[0] * cell_size + cell_size // 2,
                         )
                         pygame.draw.circle(screen, (0, 255, 0), center, 15)
-=======
-            for move in self.board_obj.possible_moves[
-                (self.selected_piece[0], self.selected_piece[1])
-            ]:
-
-                if self.board_obj.possible_moves[
-                    (self.selected_piece[0], self.selected_piece[1])
-                ][move]:
-                    center = (
-                        move[1] * cell_size + cell_size // 2,
-                        move[0] * cell_size + cell_size // 2,
-                    )
-                    pygame.draw.circle(screen, (0, 255, 0), center, 15)
->>>>>>> d93ab65dfaac7477b2a2fd457891427197cb4960
 
         for x in range(0, grid_size, cell_size):
             for y in range(0, grid_size, cell_size):

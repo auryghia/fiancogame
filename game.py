@@ -17,13 +17,6 @@ env = PygameEnviroment(board_obj)
 env.board_obj.create_boards()
 engine = Engine(size=SIZE, reset_table=RESET_TABLE, p=PERCENTAGE)
 current_selection = None
-<<<<<<< HEAD
-pr = cProfile.Profile()
-# Esegui la funzione da profilare
-pr.enable()
-=======
-
->>>>>>> d93ab65dfaac7477b2a2fd457891427197cb4960
 running = True
 click_time = 0
 while running:
@@ -54,15 +47,6 @@ while running:
                     if env.board_obj.turn == env.board_obj.team:
 
                         env.board_obj = engine.think(env.board_obj, DEPTH, MIN, MAX)
-<<<<<<< HEAD
-                        pr.disable()
-                        s = io.StringIO()
-                        sortby = pstats.SortKey.CUMULATIVE
-                        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-                        ps.print_stats()
-                        print(s.getvalue())
-=======
->>>>>>> d93ab65dfaac7477b2a2fd457891427197cb4960
 
             if event.key == K_UP:
 
@@ -97,7 +81,6 @@ while running:
                             (current_selection[0], current_selection[1])
                         ]
                     ):
-<<<<<<< HEAD
                         if env.board_obj.possible_moves[
                             (current_selection[0], current_selection[1])
                         ][new_selection]:
@@ -105,12 +88,6 @@ while running:
                             env.board_obj.move_pieces(
                                 current_selection[0], current_selection[1], y, x
                             )
-=======
-
-                        env.board_obj.move_pieces(
-                            current_selection[0], current_selection[1], y, x
-                        )
->>>>>>> d93ab65dfaac7477b2a2fd457891427197cb4960
 
                     current_selection = None
                     env.selected_piece = None
