@@ -45,7 +45,7 @@ while running:
                 print("Automatic Player")
                 if env.board_obj.players[env.board_obj.turn] == "automatic":
                     if env.board_obj.turn == env.board_obj.team:
-
+                        print("Thinking...", DEPTH)
                         env.board_obj = engine.think(env.board_obj, DEPTH, MIN, MAX)
 
             if event.key == K_UP:

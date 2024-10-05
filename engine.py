@@ -6,7 +6,7 @@ import copy
 import heapq
 from collections import defaultdict, OrderedDict
 import sys
-from parameters import IMP_MOVES_SIZE, ORDENING, TT, PVS
+from parameters import IMP_MOVES_SIZE, ORDENING, TT, AS
 
 
 class Engine:
@@ -55,19 +55,43 @@ class Engine:
             0, 2**63 - 1, size=(9, 9, 3), dtype=np.int64
         )
 
-    def aspirational_search(self, board: Board, alpha: int, beta: int, depth: int):
-        if depth == 0:
-            # Gestione dell'utility alla profondità zero (caso base)
-            if board.turn == board.team:
-                board.turn = 2 if board.turn == 1 else 1
-                board.utility_function()
-                board.turn = 2 if board.turn == 1 else 1
-                board.utility = -board.utility
-            else:
-                board.turn = 2 if board.turn == 1 else 1
-                board.utility_function()
-                board.turn = 2 if board.turn == 1 else 1
-            return board.utility, board
+    def aspirational_search(self, board: Board, d: int, alpha: int, beta: int):
+        guess = 0
+        alpha = guess - 1300
+        beta = guess + 1300
+        score, bestBoard = self.alpha_beta_Negamax(board, d, alpha, beta)
+        print(
+            "aspirational search",
+            bestBoard.board,
+            "depth",
+            d,
+            "score",
+            score,
+            "guess",
+            guess,
+            "alpha",
+            alpha,
+            "beta",
+            beta,
+        )
+        score = -score
+        if score <= alpha:
+            print("fail low")
+            alpha = -math.inf
+            beta = score
+            score, bestBoard = self.alpha_beta_Negamax(board, d, alpha, beta)
+            score = -score
+
+        elif score >= beta:
+            print("fail high")
+            alpha = score
+            beta = math.inf
+            score, bestBoard = self.alpha_beta_Negamax(board, d, alpha, beta)
+            score = -score
+
+        guess = score
+
+        return score, bestBoard
 
     def alpha_beta_Negamax(self, board: Board, depth: int, alpha: float, beta: float):
 
@@ -75,17 +99,18 @@ class Engine:
             if board.turn == board.team:
                 board.utility_function()
             else:
+                board.turn = 2 if board.turn == 1 else 1
                 board.utility_function()
-                board.utility = -board.utility
-            return board.utility, board
+
+                board.turn = 2 if board.turn == 1 else 1
+
+            return -board.utility, board
 
         score = -math.inf
-
         boards = self.next_moves(board)
         for b, oi, oj, i, j in boards:
 
             value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
-
             value = -value
             if value > score:
                 score = value
@@ -381,39 +406,18 @@ class Engine:
         start_time = time.time()
         board.zobrist = self.zobrist_hash(board)
         if TT:
-
             score, bestBoard = self.alpha_beta_Negamax_TT(board, depth, alpha, beta)
 
-        elif PVS:
-            guess = 0
-            for d in range(1, 6):
-                print(guess, alpha, beta)
-                alpha = guess - 2000
-                beta = guess + 2000
-                score, bestBoard = self.alpha_beta_Negamax(board, d, alpha, beta)
-                score = -score
-                if score <= alpha:
-                    alpha = -math.inf
-                    beta = score
-                    score, bestBoard = self.alpha_beta_Negamax(board, d, alpha, beta)
-                    score = -score
-
-                elif score >= beta:
-                    alpha = score
-                    beta = math.inf
-                    score, bestBoard = self.alpha_beta_Negamax(board, d, alpha, beta)
-                    score = -score
-
-                guess = score
-
+        elif AS:
+            score, bestBoard = self.aspirational_search(board, depth, alpha, beta)
         else:
-
             score, bestBoard = self.alpha_beta_Negamax(board, depth, alpha, beta)
         board = copy.deepcopy(bestBoard)
         print(sys.getsizeof(self.t_table) / (1024 * 1024), "MB")
         print(self.t_table)
 
         if self.reset_table:
+
             self.clear_table()
 
         self.pruningMoves = dict()

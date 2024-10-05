@@ -8,11 +8,11 @@ CELL_SIZE = GRID_SIZE // 9
 
 
 TT = False
-PVS = False
+AS = False
 SIZE = int(2**19)
 IMP_MOVES_SIZE = 4000
 PERCENTAGE = 0.75
-DEPTH = 4
+DEPTH = 5
 MIN = -32000
 MAX = 32000
 RESET_TABLE = True
@@ -20,7 +20,7 @@ ORDENING = {
     "killer_moves": True,
     "pruning_moves": False,
     "history_heuristic": False,
-    "captures": False,
+    "captures": True,
 }
 
 

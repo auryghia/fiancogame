@@ -265,7 +265,6 @@ class Board:
         reduction_factor = max(0, 1 - (1 / self.move_number))
         self.utility += position_score
         self.utility += (num_pieces - num_opponent_pieces) * PIECE_WEIGHT
-        print(self.utility)
 
     def undo_move(self):
         self.turn = 1 if self.turn == 2 else 2
