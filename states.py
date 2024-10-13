@@ -319,8 +319,7 @@ class Board:
 
             position_score += (
                 (piece.i) * POSITION_WEIGHT
-                if self.turn != self.team
-                else (8 - piece.i) * POSITION_WEIGHT
+                if piece.team == self.team
             )
 
             if piece.team == self.turn:
