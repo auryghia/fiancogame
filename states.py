@@ -3,7 +3,6 @@ import numpy as np
 import pygame
 import math
 import copy
-import random
 
 
 class Board:
@@ -206,7 +205,7 @@ class Board:
                             self.possible_moves[(i, j)][move] = False
 
     def utility_function(self) -> None:
-        POSITION_WEIGHT = 150
+        POSITION_WEIGHT = 200
         PIECE_WEIGHT = 200
         VULNERABILITY_PENALTY = 150
         num_opponent_pieces = 0
@@ -222,12 +221,10 @@ class Board:
                         # Caso in cui il turno e la squadra coincidono e il pezzo è in cima
                         if self.turn == self.team and i == 0:
                             self.utility += 1000000
-                            print("Win")
 
                         # Caso in cui il turno e la squadra NON coincidono e il pezzo è in fondo
                         if self.turn != self.team and i == 8:
                             self.utility += 1000000
-                            print("Win")
 
                     # Se il giocatore corrente NON è sulla casella
                     if self.board[i, j] != self.turn:
@@ -235,12 +232,10 @@ class Board:
                         # Caso in cui il turno e la squadra coincidono e il pezzo è in fondo (sconfitta)
                         if self.turn == self.team and i == 8:
                             self.utility -= 1000000
-                            print("Lose")
 
                         # Caso in cui il turno e la squadra NON coincidono e il pezzo è in cima (sconfitta)
                         if self.turn != self.team and i == 0:
                             self.utility -= 1000000
-                            print("Lose")
 
                     if self.board[i, j] == self.turn:
 
@@ -272,6 +267,12 @@ class Board:
         self.move_pieces(move[2], move[3], move[0], move[1])
         self.turn = 1 if self.turn == 2 else 2
 
+        if abs(move[2] - move[0]) == 2:
+            print("Undoing capture")
+            mid_i = (move[2] + move[0]) // 2
+            mid_j = (move[3] + move[1]) // 2
+            self.board[mid_i, mid_j] = 1 if self.turn == 2 else 2
+
 
 class PygameEnviroment:  # class for the pygame enviroment
     def __init__(self, board_obj: Board) -> None:
@@ -280,11 +281,16 @@ class PygameEnviroment:  # class for the pygame enviroment
             None  # Aggiungi l'attributo per tenere traccia del pezzo selezionato
         )
 
-    def show(self, screen, screen_size, grid_size, cell_size):
+    def show(self, screen, screen_size, grid_size, cell_size, color):
         font = pygame.font.Font(None, 36)
         letters = "abcdefghi"
-        numbers_team_1 = "987654321"
-        numbers_team_2 = "123456789"
+        if color == 1:
+            numbers_team_1 = "987654321"
+            numbers_team_2 = "123456789"
+
+        else:
+            numbers_team_1 = "123456789"
+            numbers_team_2 = "987654321"
         purple_color = (128, 0, 128)
 
         numbers = numbers_team_1 if self.board_obj.team == 1 else numbers_team_2
@@ -294,16 +300,29 @@ class PygameEnviroment:  # class for the pygame enviroment
 
                 color = (0, 0, 0)
                 if square == 1 or square == 2:
-                    pygame.draw.circle(
-                        screen,
-                        color,
-                        (
-                            j * cell_size + cell_size // 2,
-                            i * cell_size + cell_size // 2,
-                        ),
-                        cell_size // 2 - 5,
-                        4 if square == 1 else 0,
-                    )
+                    if color == 1:
+                        pygame.draw.circle(
+                            screen,
+                            color,
+                            (
+                                j * cell_size + cell_size // 2,
+                                i * cell_size + cell_size // 2,
+                            ),
+                            cell_size // 2 - 5,
+                            4 if square == 1 else 0,
+                        )
+
+                    else:
+                        pygame.draw.circle(
+                            screen,
+                            color,
+                            (
+                                j * cell_size + cell_size // 2,
+                                i * cell_size + cell_size // 2,
+                            ),
+                            cell_size // 2 - 5,
+                            0 if square == 1 else 4,
+                        )
 
         if self.selected_piece is not None:
             pygame.draw.circle(
@@ -346,8 +365,11 @@ class PygameEnviroment:  # class for the pygame enviroment
                     center=(x + cell_size // 2, y + cell_size // 2)
                 )
                 screen.blit(text, text_rect)
+        if color == 1:
 
-        player_text = "White's Turn" if self.board_obj.turn == 1 else "Black's Turn"
+            player_text = "White's Turn" if self.board_obj.turn == 1 else "Black's Turn"
+        else:
+            player_text = "Black's Turn" if self.board_obj.turn == 1 else "White's Turn"
         player_text_rendered = font.render(player_text, True, (0, 0, 0))
         player_text_rect = player_text_rendered.get_rect(
             center=(screen_size[0] - 80, screen_size[1] - 20)

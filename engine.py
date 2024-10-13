@@ -32,7 +32,7 @@ class Engine:
         self.reset_table = reset_table
         self.percentage = p
         self.collisions = 0
-
+        self.max_depth = 0
         dtype = np.dtype(
             [
                 ("score", np.int32),
@@ -101,13 +101,14 @@ class Engine:
             else:
                 board.turn = 2 if board.turn == 1 else 1
                 board.utility_function()
-
+                board.utility = -board.utility
                 board.turn = 2 if board.turn == 1 else 1
 
-            return -board.utility, board
+            return board.utility, board
 
         score = -math.inf
         boards = self.next_moves(board)
+
         for b, oi, oj, i, j in boards:
 
             value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
@@ -149,7 +150,7 @@ class Engine:
         zobrist_key = board.zobrist
         board.depth = depth
         ttEntry = self.get(zobrist_key)
-        if ttEntry["depth"] != -1:
+        if ttEntry["depth"] != 0:
             if ttEntry["flag"] == "EXACT":
                 oi, oj, i, j = ttEntry["best_move"]
                 newBoard = board.create_new_board(oi, oj, i, j)
@@ -157,7 +158,6 @@ class Engine:
                 return ttEntry["score"], newBoard
 
             elif ttEntry["flag"] == "LOWER_BOUND":
-
                 alpha = max(alpha, ttEntry["score"])
                 board.lower_bound = alpha
             elif ttEntry["flag"] == "UPPER_BOUND":
@@ -168,17 +168,28 @@ class Engine:
                 return ttEntry["score"], board
 
         if depth == 0:
-            board.turn = 2 if board.turn == 1 else 1
-            board.utility_function()
-            board.turn = 2 if board.turn == 1 else 1
+            if board.turn == board.team:
+                board.utility_function()
+            else:
+                board.turn = 2 if board.turn == 1 else 1
+                board.utility_function()
+                board.utility = -board.utility
+                board.turn = 2 if board.turn == 1 else 1
+
             return board.utility, board
 
         score = -math.inf
 
         boards = self.next_moves(board)
-        for b, oi, oj, i, j in boards:
 
-            value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
+        for b, oi, oj, i, j in boards:
+            """
+            if abs(oi - i) > 1 and board.board[oi, oj] == board.team:
+                value, _ = self.alpha_beta_Negamax_TT(b, depth, -beta, -alpha)
+                self.max_depth += 2
+            """
+
+            value, _ = self.alpha_beta_Negamax_TT(b, depth - 1, -beta, -alpha)
 
             value = -value
             if value > score:
@@ -195,14 +206,13 @@ class Engine:
                     self.add_pruning_move((board.zobrist, b.zobrist))
 
                 break
-        board.flag = (
-            "EXACT"
-            if old_alpha < score < beta
-            else ("UPPER_BOUND" if score <= old_alpha else "LOWER_BOUND")
-        )
-
-        board.upper_bound = alpha
-        board.lower_bound = beta
+        board.flag = "EXACT"
+        if score <= old_alpha:
+            board.flag = "UPPER_BOUND"
+        elif score >= beta:
+            board.flag = "LOWER_BOUND"
+        board.upper_bound = beta
+        board.lower_bound = alpha
         board.best_move = bestMove
         board.score = score
         board.bestBoard = bestBoard
@@ -212,7 +222,7 @@ class Engine:
 
         self.insert(board)
 
-        return score, board.bestBoard
+        return score, bestBoard
 
     def next_moves(self, board: Board):
         """
@@ -355,6 +365,25 @@ class Engine:
         index = self.hash_index(board.zobrist)
         if self.t_table[index]["depth"] != 0:
             self.collisions += 1
+            if self.t_table[index]["depth"] > board.depth:
+
+                self.t_table[index] = np.array(
+                    [
+                        (
+                            board.score,
+                            board.flag,
+                            board.upper_bound,
+                            board.lower_bound,
+                            board.depth,
+                            board.best_move,
+                        )
+                    ],
+                    dtype=self.t_table.dtype,
+                )
+
+                self.num_elements += 1
+
+                return
 
         self.t_table[index] = np.array(
             [
@@ -412,9 +441,8 @@ class Engine:
             score, bestBoard = self.aspirational_search(board, depth, alpha, beta)
         else:
             score, bestBoard = self.alpha_beta_Negamax(board, depth, alpha, beta)
+        best_move = board.best_move
         board = copy.deepcopy(bestBoard)
-        print(sys.getsizeof(self.t_table) / (1024 * 1024), "MB")
-        print(self.t_table)
 
         if self.reset_table:
 
@@ -427,7 +455,10 @@ class Engine:
         print(f"Number of moves: {board.move_number}")
         print(f"Score: {score}")
         print(f"depth: {depth}")
-        print(f"Best move: {board.best_move}")
+        print(f"Max Depth: {self.max_depth}")
+        print(f"Best move: {best_move}")
         print(f"Numbers of Collision: {self.collisions}")
+        print("\n")
+        self.collisions = 0
 
         return board

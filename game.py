@@ -3,10 +3,6 @@ from pygame.locals import *
 from states import Board, PygameEnviroment
 from engine import Engine
 from parameters import *
-import copy
-import cProfile
-import pstats
-import io
 
 
 pygame.init()
@@ -22,7 +18,7 @@ click_time = 0
 while running:
 
     screen.fill(SCREEN_COLOUR)
-    env.show(screen, GAME_RES, GRID_SIZE, CELL_SIZE)
+    env.show(screen, GAME_RES, GRID_SIZE, CELL_SIZE, COLOR)
     pygame.display.flip()
 
     for event in pygame.event.get():
