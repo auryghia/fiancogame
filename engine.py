@@ -5,8 +5,7 @@ import time
 import copy
 import heapq
 from collections import defaultdict, OrderedDict
-import sys
-from parameters import IMP_MOVES_SIZE, ORDENING, TT, AS
+from parameters import IMP_MOVES_SIZE, ORDENING, TT, AS, DEPTH
 
 
 class Engine:
@@ -57,39 +56,31 @@ class Engine:
 
     def aspirational_search(self, board: Board, d: int, alpha: int, beta: int):
         guess = 0
-        alpha = guess - 1300
-        beta = guess + 1300
-        score, bestBoard = self.alpha_beta_Negamax(board, d, alpha, beta)
-        print(
-            "aspirational search",
-            bestBoard.board,
-            "depth",
-            d,
-            "score",
-            score,
-            "guess",
-            guess,
-            "alpha",
-            alpha,
-            "beta",
-            beta,
-        )
-        score = -score
-        if score <= alpha:
-            print("fail low")
-            alpha = -math.inf
-            beta = score
-            score, bestBoard = self.alpha_beta_Negamax(board, d, alpha, beta)
-            score = -score
 
-        elif score >= beta:
-            print("fail high")
-            alpha = score
-            beta = math.inf
+        for d in range(1, 7):
+            print(f"Depth: {d}")
+            alpha = guess - 15000
+            beta = guess + 15000
+            print(alpha, beta)
             score, bestBoard = self.alpha_beta_Negamax(board, d, alpha, beta)
-            score = -score
+            print(f"Score: {score}")
 
-        guess = score
+            score = -score
+            if score <= alpha:
+                print("fail low")
+                alpha = -math.inf
+                beta = score
+                score, bestBoard = self.alpha_beta_Negamax(board, d, alpha, beta)
+                score = -score
+
+            elif score >= beta:
+                print("fail high")
+                alpha = score
+                beta = math.inf
+                score, bestBoard = self.alpha_beta_Negamax(board, d, alpha, beta)
+                score = -score
+
+            guess = score
 
         return score, bestBoard
 
@@ -115,7 +106,6 @@ class Engine:
             value = -value
             if value > score:
                 score = value
-                bestMove = (oi, oj, i, j)
                 bestBoard = b
 
             alpha = max(alpha, score)
@@ -183,13 +173,11 @@ class Engine:
         boards = self.next_moves(board)
 
         for b, oi, oj, i, j in boards:
-            """
-            if abs(oi - i) > 1 and board.board[oi, oj] == board.team:
+            if abs(oi - i) > 1:
                 value, _ = self.alpha_beta_Negamax_TT(b, depth, -beta, -alpha)
-                self.max_depth += 2
-            """
 
-            value, _ = self.alpha_beta_Negamax_TT(b, depth - 1, -beta, -alpha)
+            else:
+                value, _ = self.alpha_beta_Negamax_TT(b, depth - 1, -beta, -alpha)
 
             value = -value
             if value > score:
