@@ -42,7 +42,6 @@ class Engine:
         self.size = size
         self.percentage = p
         self.reset_table = reset_table
-        self.pruningMoves = dict()
         self.killerMoves = defaultdict(lambda: OrderedDict())
         self.histHeuristic = dict()
 
@@ -234,8 +233,6 @@ class Engine:
             if alpha >= beta:
                 if ORDENING["killer_moves"]:
                     self.add_killer_move(depth, (board.zobrist, b.zobrist))
-                if ORDENING["pruning_moves"]:
-                    self.add_pruning_move((board.zobrist, b.zobrist))
                 self.pruning_numbers += 1
                 break
         if ORDENING["history_heuristic"]:
@@ -307,8 +304,6 @@ class Engine:
             if alpha >= beta:
                 if ORDENING["killer_moves"]:
                     self.add_killer_move(depth, (board.zobrist, b.zobrist))
-                if ORDENING["pruning_moves"]:
-                    self.add_pruning_move((board.zobrist, b.zobrist))
                 self.pruning_numbers += 1
 
                 break
@@ -385,14 +380,6 @@ class Engine:
                                 histHeuristic.append(
                                     (newBoardObj, i, j, move[0], move[1])
                                 )
-                            elif (
-                                ORDENING["pruning_moves"]
-                                and (board.zobrist, newBoardObj.zobrist)
-                                in self.pruningMoves
-                            ):
-                                pruningMoves.append(
-                                    (newBoardObj, i, j, move[0], move[1])
-                                )
                             else:
                                 boards.append((newBoardObj, i, j, move[0], move[1]))
         if ORDENING["killer_moves"]:
@@ -425,20 +412,6 @@ class Engine:
 
         return move_list
 
-    def add_pruning_move(self, move):  # add move to important moves
-        if move not in self.pruningMoves:
-            if len(self.pruningMoves) >= self.max_size:
-                self.trim_pruning_moves()
-            self.pruningMoves[move] = 1
-        else:
-            self.pruningMoves[move] += 1
-
-    def trim_pruning_moves(self):  # trim important moves
-        pmkeys = list(self.pruningMoves.keys())
-        mid_index = len(pmkeys) // 2
-        self.pruningMoves = {key: self.pruningMoves[key] for key in pmkeys[mid_index:]}
-        print("Trimming important moves")
-
     def add_killer_move(self, depth, move):
         """
         Adds a move to the killer moves table for a specific search depth.
@@ -467,7 +440,7 @@ class Engine:
                     key=lambda item: item[1],
                     reverse=True,
                 )[
-                    :10
+                    :100
                 ]  # keep only the best 10 moves for depth
             )
 

@@ -20,9 +20,7 @@ RESET_TABLE = False
 
 ORDENING = {
     "killer_moves": True,
-    "pruning_moves": False,
     "history_heuristic": True,
-    "captures": False,
 }
 
 # ASPIRATIONAL SEARCH
