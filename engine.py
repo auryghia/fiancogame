@@ -98,7 +98,6 @@ class Engine:
             beta = guess + delta
             if TT:
                 score, bestBoard = self.alpha_beta_Negamax_TT(board, d, alpha, beta)
-                print(score)
                 self.clear_table()
             else:
                 score, bestBoard = self.alpha_beta_Negamax(board, d, alpha, beta)
@@ -260,6 +259,7 @@ class Engine:
             (float, Board): A tuple containing the best score evaluated and the corresponding board state after the best move.
 
         """
+
         old_alpha = alpha
         zobrist_key = board.zobrist
         board.depth = depth
@@ -292,19 +292,9 @@ class Engine:
             return board.utility, board
 
         score = -math.inf
-
         boards = self.next_moves(board)
-
         for b, oi, oj, i, j in boards:
-            if VARIABLE_DEPTH:
-                if abs(oi - i) > 1:
-                    value, _ = self.alpha_beta_Negamax_TT(b, depth, -beta, -alpha)
-
-                else:
-                    value, _ = self.alpha_beta_Negamax_TT(b, depth - 1, -beta, -alpha)
-
-            else:
-                value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
+            value, _ = self.alpha_beta_Negamax_TT(b, depth - 1, -beta, -alpha)
 
             value = -value
             if value > score:
@@ -686,10 +676,6 @@ class Engine:
         # Deep copy the best board state to ensure no references are shared
         board = copy.deepcopy(bestBoard)
 
-        # Clear the transposition table if the reset flag is set
-        if RESET_TABLE:
-            self.clear_table()
-
         # Reset pruning moves dictionary and statistics
         self.pruningMoves = {}
 
@@ -703,11 +689,16 @@ class Engine:
         print(f"Number of moves evaluated: {board.move_number}")
         print(f"Number of prunings during search: {self.pruning_numbers}")
         print(f"Best move: {best_move}")
-        print(f"Number of transposition table collisions: {self.collisions}")
+        if TT:
+            print(f"Number of transposition table elements: {self.num_elements}")
+            print(f"Number of transposition table collisions: {self.collisions}")
         print("-" * 50)
 
         # Reset collision and pruning statistics for the next search
         self.collisions = 0
         self.pruning_numbers = 0
+        if RESET_TABLE:
+            self.clear_table()
+            self.num_elements = 0
 
         return board

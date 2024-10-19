@@ -12,7 +12,7 @@ TURN = 1
 PLAYERS = ["manually", "automatic"]
 
 # ALPHA-BETA PRUNING
-DEPTH = 6
+DEPTH = 5
 MIN = -3200000
 MAX = 3200000
 VARIABLE_DEPTH = False
@@ -31,13 +31,13 @@ DELTA = 1200
 MAX_DEPTH = 5
 
 # MULTICUT
-MULTICUT = True
+MULTICUT = False
 R = 2
 C = 2
 M = 3
 
 # TRASPOSITIONAL TABLE
-TT = False
+TT = True
 SIZE = int(math.pow(2, 20))
 IMP_MOVES_SIZE = 4000
 PERCENTAGE = 0.75
