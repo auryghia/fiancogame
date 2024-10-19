@@ -15,7 +15,7 @@ PLAYERS = ["automatic", "manually"]
 DEPTH = 5
 MIN = -3200000
 MAX = 3200000
-VARIABLE_DEPTH = False
+DEPTH_EXTENSION = False
 RESET_TABLE = False
 
 ORDENING = {

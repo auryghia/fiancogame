@@ -10,7 +10,7 @@ from parameters import (
     TT,
     AS,
     MULTICUT,
-    VARIABLE_DEPTH,
+    DEPTH_EXTENSION,
     R,
     C,
     M,
@@ -89,7 +89,6 @@ class Engine:
             tuple: Best score and board state found by the search at the given depth.
         """
         guess = 0
-        start_time = time.time()
 
         for d in range(1, max_depth + 1):
 
@@ -212,7 +211,7 @@ class Engine:
         boards = self.next_moves(board)
 
         for b, oi, oj, i, j in boards:
-            if VARIABLE_DEPTH:
+            if DEPTH_EXTENSION:
                 if abs(oi - i) > 1:
                     value, _ = self.alpha_beta_Negamax_TT(b, depth, -beta, -alpha)
 
@@ -291,8 +290,14 @@ class Engine:
         score = -math.inf
         boards = self.next_moves(board)
         for b, oi, oj, i, j in boards:
-            value, _ = self.alpha_beta_Negamax_TT(b, depth - 1, -beta, -alpha)
+            if DEPTH_EXTENSION:
+                if abs(oi - i) > 1:
+                    value, _ = self.alpha_beta_Negamax_TT(b, depth, -beta, -alpha)
 
+                else:
+                    value, _ = self.alpha_beta_Negamax_TT(b, depth - 1, -beta, -alpha)
+            else:
+                value, _ = self.alpha_beta_Negamax_TT(b, depth - 1, -beta, -alpha)
             value = -value
             if value > score:
                 score = value
