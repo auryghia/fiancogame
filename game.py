@@ -3,7 +3,7 @@ from pygame.locals import *
 from states import Board, PygameEnviroment
 from engine import Engine
 from parameters import *
-import copy
+
 
 pygame.init()
 pygame.display.set_caption(GAME_TITLE)
@@ -12,14 +12,13 @@ board_obj = Board(turn=TURN, team=TEAM, players=PLAYERS)
 env = PygameEnviroment(board_obj)
 env.board_obj.create_boards()
 engine = Engine(size=SIZE, reset_table=RESET_TABLE, p=PERCENTAGE)
-
-
+current_selection = None
 running = True
 click_time = 0
 while running:
 
     screen.fill(SCREEN_COLOUR)
-    env.show(screen, GAME_RES, GRID_SIZE, CELL_SIZE)
+    env.show(screen, GAME_RES, GRID_SIZE, CELL_SIZE, COLOR)
     pygame.display.flip()
 
     for event in pygame.event.get():
@@ -39,59 +38,61 @@ while running:
 
             # automatic player
             if event.key == pygame.K_n:
+                print("Automatic Player")
                 if env.board_obj.players[env.board_obj.turn] == "automatic":
                     if env.board_obj.turn == env.board_obj.team:
-
+                        print("Thinking...")
                         env.board_obj = engine.think(env.board_obj, DEPTH, MIN, MAX)
 
-            elif event.key == K_UP:
+            if event.key == K_UP:
 
                 DEPTH += 1
                 print(f"New Depth level: {DEPTH}")
 
-            elif event.key == K_DOWN:
+            if event.key == K_DOWN:
                 DEPTH -= 1
                 print(f"New Depth Level: {DEPTH}")
 
         else:
             # Manual player
             if env.board_obj.players[env.board_obj.turn] == "manually":
+                env.board_obj.handle_capture()
 
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    mouse_x, mouse_y = event.pos
-                    col = mouse_x // CELL_SIZE
-                    row = mouse_y // CELL_SIZE
-                    for piece in env.board_obj.pieces:
-                        if piece.team == env.board_obj.turn:
-                            if piece.i == row and piece.j == col:
-                                if not piece.is_selected:
-                                    for p in env.board_obj.pieces:
-                                        p.is_selected = False
+            if event.type == MOUSEBUTTONDOWN:
+                # Manual Move
+                pos = pygame.mouse.get_pos()
+                x, y = pos
+                x = x // CELL_SIZE
+                y = y // CELL_SIZE
 
-                                    piece.is_selected = True
-                                    env.board_obj.handle_capture()
-                                else:
-                                    piece.is_selected = False
+                if y > 8 or y < 0 or x > 8 or x < 0:
+                    continue
 
-                elif event.type == pygame.MOUSEBUTTONUP:
-                    mouse_x, mouse_y = event.pos
-                    col = mouse_x // CELL_SIZE
-                    row = mouse_y // CELL_SIZE
-                    for piece in env.board_obj.pieces:
-                        if piece.is_selected and piece.team == env.board_obj.turn:
-                            if (
-                                row,
-                                col,
-                            ) in piece.possibleMoves and piece.possibleMoves[
-                                (row, col)
-                            ]:
-                                if 0 <= row < GRID_SIZE and 0 <= col < GRID_SIZE:
-                                    old_pieces = copy.deepcopy(env.board_obj.pieces)
-                                    env.board_obj.move_pieces(
-                                        piece.i, piece.j, row, col
-                                    )
-                                    piece.is_selected = False
-                                    env.board_obj.old_pieces = old_pieces
+                new_selection = (y, x)
+
+                if current_selection is not None:
+                    if current_selection in env.board_obj.possible_moves:
+
+                        if (
+                            new_selection
+                            in env.board_obj.possible_moves[
+                                (current_selection[0], current_selection[1])
+                            ]
+                        ):
+                            if env.board_obj.possible_moves[
+                                (current_selection[0], current_selection[1])
+                            ][new_selection]:
+
+                                env.board_obj.move_pieces(
+                                    current_selection[0], current_selection[1], y, x
+                                )
+
+                    current_selection = None
+                    env.selected_piece = None
+                else:
+                    if env.board_obj.board[y, x] == env.board_obj.turn:
+                        current_selection = (y, x)
+                        env.selected_piece = [y, x]
 
 
 pygame.quit()
