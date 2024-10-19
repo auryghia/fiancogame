@@ -43,11 +43,6 @@ class Board:
         self.flag = None
         self.depth = 0
 
-    """
-    def order_pieces(self):
-        self.pieces = sorted(self.pieces, key=lambda x: x.i, reverse=True)
-    """
-
     def create_boards(
         self,
     ):
@@ -144,13 +139,25 @@ class Board:
     def count_threats(self, i, j) -> int:
         num_threats = 0
         direction = -1 if self.board[i, j] == self.team else 1
-        if i + direction < 9 and i + direction >= 0 and j - 1 >= 0 and j + 1 < 9:
-            if self.board[i + direction, j + 1] == 0:
-                num_threats += 1
+        piece_behind = i - direction
+        if (
+            i + direction < 9
+            and i + direction >= 0
+            and piece_behind < 9
+            and piece_behind >= 0
+            and j + 1 < 9
+            and j - 1 >= 0
+        ):
 
-            if self.board[i + direction, j - 1] == 0:
+            if self.board[i + direction, j + 1] == 2:
+                if self.board[piece_behind, j - 1] == 0:
 
-                num_threats += 1
+                    num_threats += 1
+
+            if self.board[i + direction, j - 1] == 2:
+                if self.board[piece_behind, j + 1] == 0:
+
+                    num_threats += 1
         return num_threats
 
     def move_pieces(self, oi, oj, i, j):
@@ -205,60 +212,39 @@ class Board:
                             self.possible_moves[(i, j)][move] = False
 
     def utility_function(self) -> None:
-        POSITION_WEIGHT = 200
-        PIECE_WEIGHT = 200
-        VULNERABILITY_PENALTY = 150
+        POSITION_WEIGHT = 10
+        PIECE_WEIGHT = 10
+        VULNERABILITY_PENALTY = 100
         num_opponent_pieces = 0
         num_pieces = 0
         position_score = 0
+        captures = 0
         for i in range(9):
             for j in range(9):
                 if self.board[i, j] != 0:
 
-                    # Se il giocatore corrente è sulla casella
-                    if self.board[i, j] == self.turn:
+                    if self.board[i, j] == self.team:
 
-                        # Caso in cui il turno e la squadra coincidono e il pezzo è in cima
-                        if self.turn == self.team and i == 0:
+                        if i == 0:
                             self.utility += 1000000
 
-                        # Caso in cui il turno e la squadra NON coincidono e il pezzo è in fondo
-                        if self.turn != self.team and i == 8:
-                            self.utility += 1000000
+                        position_score += ((8 - i) ** 2) * POSITION_WEIGHT
 
-                    # Se il giocatore corrente NON è sulla casella
-                    if self.board[i, j] != self.turn:
-
-                        # Caso in cui il turno e la squadra coincidono e il pezzo è in fondo (sconfitta)
-                        if self.turn == self.team and i == 8:
-                            self.utility -= 1000000
-
-                        # Caso in cui il turno e la squadra NON coincidono e il pezzo è in cima (sconfitta)
-                        if self.turn != self.team and i == 0:
-                            self.utility -= 1000000
-
-                    if self.board[i, j] == self.turn:
+                        num_pieces += 1
 
                         num_threats = self.count_threats(i, j)
-                        if num_threats > 0:
-                            vulnerability = VULNERABILITY_PENALTY * num_threats
-                            position_score -= vulnerability
 
-                    if self.board[i, j] == self.turn:
+                        captures += num_threats
 
-                        position_score += (
-                            (i**2) * POSITION_WEIGHT
-                            if self.turn != self.team
-                            else ((i - 8) ** 2) * POSITION_WEIGHT
-                        )
+                    if self.board[i, j] != self.team:
 
-                    if self.board[i, j] == self.turn:
-                        num_pieces += 1
-                    elif self.board[i, j] != self.turn:
+                        if i == 8:
+                            self.utility -= 1000000
                         num_opponent_pieces += 1
-
+        self.utility -= captures * VULNERABILITY_PENALTY
         reduction_factor = max(0, 1 - (1 / self.move_number))
         self.utility += position_score
+
         self.utility += (num_pieces - num_opponent_pieces) * PIECE_WEIGHT
 
     def undo_move(self):

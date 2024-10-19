@@ -7,12 +7,13 @@ GRID_SIZE = 720
 CELL_SIZE = GRID_SIZE // 9
 
 
-TT = True
+TT = False
 AS = False
+MULTICUT = True
 SIZE = int(math.pow(2, 20))
 IMP_MOVES_SIZE = 4000
 PERCENTAGE = 0.75
-DEPTH = 4
+DEPTH = 5
 MIN = -32000
 MAX = 32000
 RESET_TABLE = False
@@ -22,6 +23,7 @@ ORDENING = {
     "history_heuristic": False,
     "captures": False,
 }
+VARIABLE_DEPTH = False
 TEAM = 1
 COLOR = 2
 TURN = 1

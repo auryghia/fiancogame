@@ -5,7 +5,7 @@ import time
 import copy
 import heapq
 from collections import defaultdict, OrderedDict
-from parameters import IMP_MOVES_SIZE, ORDENING, TT, AS, DEPTH
+from parameters import IMP_MOVES_SIZE, ORDENING, TT, AS, MULTICUT, VARIABLE_DEPTH
 
 
 class Engine:
@@ -32,6 +32,7 @@ class Engine:
         self.percentage = p
         self.collisions = 0
         self.max_depth = 0
+        self.pruning_numbers = 0
         dtype = np.dtype(
             [
                 ("score", np.int32),
@@ -56,14 +57,18 @@ class Engine:
 
     def aspirational_search(self, board: Board, d: int, alpha: int, beta: int):
         guess = 0
+        guess = 0
+        start_time = time.time()  # Record the start time
 
         for d in range(1, 7):
-            print(f"Depth: {d}")
+            if (
+                time.time() - start_time > 15
+            ):  # Check if the elapsed time exceeds 15 seconds
+                break
+
             alpha = guess - 15000
             beta = guess + 15000
-            print(alpha, beta)
             score, bestBoard = self.alpha_beta_Negamax(board, d, alpha, beta)
-            print(f"Score: {score}")
 
             score = -score
             if score <= alpha:
@@ -84,29 +89,50 @@ class Engine:
 
         return score, bestBoard
 
-    def alpha_beta_Negamax(self, board: Board, depth: int, alpha: float, beta: float):
+    def multi_cut(self, C, M, board: Board, depth: int, alpha: float, beta: float):
 
         if depth == 0:
             if board.turn == board.team:
                 board.utility_function()
+
             else:
-                board.turn = 2 if board.turn == 1 else 1
                 board.utility_function()
                 board.utility = -board.utility
-                board.turn = 2 if board.turn == 1 else 1
 
             return board.utility, board
 
         score = -math.inf
         boards = self.next_moves(board)
+        print(boards)
+        c = 0
+        m = 0
+        while len(boards) > 0 and m < M:
+            b, oi, oj, i, j = boards.pop(0)
+            value, _ = self.alpha_beta_Negamax_TT(b, depth - 1 - 2, -beta, -alpha)
+
+            value = -value
+
+            if value >= beta:
+                c += 1
+                if c >= C:
+                    return beta, b
+            m += 1
 
         for b, oi, oj, i, j in boards:
+            if VARIABLE_DEPTH:
+                if abs(oi - i) > 1:
+                    value, _ = self.alpha_beta_Negamax_TT(b, depth, -beta, -alpha)
 
-            value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
+                else:
+                    value, _ = self.alpha_beta_Negamax_TT(b, depth - 1, -beta, -alpha)
+
+            else:
+                value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
             value = -value
             if value > score:
                 score = value
                 bestBoard = b
+                bestMove = (oi, oj, i, j)
 
             alpha = max(alpha, score)
 
@@ -115,27 +141,93 @@ class Engine:
                     self.add_killer_move(depth, (board.zobrist, b.zobrist))
                 if ORDENING["pruning_moves"]:
                     self.add_pruning_move((board.zobrist, b.zobrist))
-
+                self.pruning_numbers += 1
                 break
+        if ORDENING["history_heuristic"]:
+            self.add_history_heuristic((bestMove), depth)
+        return score, bestBoard
 
+    def alpha_beta_Negamax(self, board: Board, depth: int, alpha: float, beta: float):
+
+        if depth == 0:
+            if board.turn == board.team:
+                board.utility_function()
+
+            else:
+                board.utility_function()
+                board.utility = -board.utility
+
+            return board.utility, board
+
+        score = -math.inf
+        boards = self.next_moves(board)
+
+        for b, oi, oj, i, j in boards:
+            if VARIABLE_DEPTH:
+                if abs(oi - i) > 1:
+                    value, _ = self.alpha_beta_Negamax_TT(b, depth, -beta, -alpha)
+
+                else:
+                    value, _ = self.alpha_beta_Negamax_TT(b, depth - 1, -beta, -alpha)
+
+            else:
+                value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
+            value = -value
+            if value > score:
+                score = value
+                bestBoard = b
+                bestMove = (oi, oj, i, j)
+
+            alpha = max(alpha, score)
+
+            if alpha >= beta:
+                if ORDENING["killer_moves"]:
+                    self.add_killer_move(depth, (board.zobrist, b.zobrist))
+                if ORDENING["pruning_moves"]:
+                    self.add_pruning_move((board.zobrist, b.zobrist))
+                self.pruning_numbers += 1
+                break
+        if ORDENING["history_heuristic"]:
+            self.add_history_heuristic((bestMove), depth)
         return score, bestBoard
 
     def alpha_beta_Negamax_TT(
         self, board: Board, depth: int, alpha: float, beta: float
     ):
         """
-        Implements the alpha-beta pruning algorithm with Negamax for move search and evaluation.
+        Implements the Alpha-Beta pruning algorithm with Negamax search and transposition table (TT) lookup.
+        This method efficiently searches for the best move in a two-player zero-sum game.
 
         Parameters:
-            board (Board): The current board state.
-            depth (int): The depth of the search.
-            alpha (float): Alpha value for pruning.
-            beta (float): Beta value for pruning.
+            board (Board): The current state of the game board.
+            depth (int): The maximum depth for the search.
+            alpha (float): The current lower bound of the search window.
+            beta (float): The current upper bound of the search window.
 
         Returns:
-            (float, Board): The best score and the corresponding board state.
-        """
+            (float, Board): A tuple containing the best score evaluated and the corresponding board state after the best move.
 
+        This implementation uses the following strategies:
+        1. **Transposition Table (TT)**: Stores previously computed game states (zobrist keys) to avoid redundant calculations.
+           It checks if a state has been explored with the same or greater depth, returning the stored result to prune unnecessary branches.
+           The flags used in the TT entry are:
+             - "EXACT": Exact value of the board score.
+             - "LOWER_BOUND": Score is greater than or equal to this value.
+             - "UPPER_BOUND": Score is less than or equal to this value.
+
+        2. **Negamax**: A variant of minimax for two-player zero-sum games. Here, maximizing the opponent's score is equivalent to minimizing the player's score,
+           so the algorithm negates the result at each recursive level.
+
+        3. **Alpha-Beta Pruning**: Cuts off branches of the search tree that can't improve the current evaluation, reducing the number of nodes to evaluate.
+
+        4. **Variable Depth**: Allows dynamic depth adjustments for certain moves, extending the search depth for specific cases (e.g., moves that involve greater changes).
+
+        5. **Move Ordering**: Heuristic techniques such as killer moves, history heuristic, and pruning moves are used to prioritize promising moves early in the search,
+           increasing pruning efficiency.
+
+        This method updates the TT with the best move, score, and flags after evaluating all possible next moves.
+
+        """
         old_alpha = alpha
         zobrist_key = board.zobrist
         board.depth = depth
@@ -160,11 +252,10 @@ class Engine:
         if depth == 0:
             if board.turn == board.team:
                 board.utility_function()
+
             else:
-                board.turn = 2 if board.turn == 1 else 1
                 board.utility_function()
                 board.utility = -board.utility
-                board.turn = 2 if board.turn == 1 else 1
 
             return board.utility, board
 
@@ -173,11 +264,15 @@ class Engine:
         boards = self.next_moves(board)
 
         for b, oi, oj, i, j in boards:
-            if abs(oi - i) > 1:
-                value, _ = self.alpha_beta_Negamax_TT(b, depth, -beta, -alpha)
+            if VARIABLE_DEPTH:
+                if abs(oi - i) > 1:
+                    value, _ = self.alpha_beta_Negamax_TT(b, depth, -beta, -alpha)
+
+                else:
+                    value, _ = self.alpha_beta_Negamax_TT(b, depth - 1, -beta, -alpha)
 
             else:
-                value, _ = self.alpha_beta_Negamax_TT(b, depth - 1, -beta, -alpha)
+                value, _ = self.alpha_beta_Negamax(b, depth - 1, -beta, -alpha)
 
             value = -value
             if value > score:
@@ -192,6 +287,7 @@ class Engine:
                     self.add_killer_move(depth, (board.zobrist, b.zobrist))
                 if ORDENING["pruning_moves"]:
                     self.add_pruning_move((board.zobrist, b.zobrist))
+                self.pruning_numbers += 1
 
                 break
         board.flag = "EXACT"
@@ -206,7 +302,7 @@ class Engine:
         board.bestBoard = bestBoard
 
         if ORDENING["history_heuristic"]:
-            self.add_history_heuristic((board.zobrist, board.bestBoard.zobrist), score)
+            self.add_history_heuristic((bestMove), depth)
 
         self.insert(board)
 
@@ -248,8 +344,8 @@ class Engine:
                             elif ORDENING["captures"] and newBoardObj.capture_available:
                                 captMoves.append((newBoardObj, i, j, move[0], move[1]))
                             elif (
-                                ORDENING["history_heuristic"] and board.zobrist,
-                                newBoardObj.zobrist,
+                                ORDENING["history_heuristic"]
+                                and (i, j, move[0], move[1])
                             ) in self.histHeuristic:
                                 histHeuristic.append(
                                     (newBoardObj, i, j, move[0], move[1])
@@ -265,18 +361,25 @@ class Engine:
                             else:
                                 boards.append((newBoardObj, i, j, move[0], move[1]))
         if ORDENING["killer_moves"]:
-            self.sort_moves(killerMoves, board, self.killerMoves[board.depth])
+            self.sort_killer_moves(killerMoves, board, self.killerMoves[board.depth])
         if ORDENING["history_heuristic"]:
-            self.sort_moves(histHeuristic, board, self.histHeuristic)
+            self.sort_hist_moves(histHeuristic, board, self.histHeuristic)
 
         return killerMoves + captMoves + pruningMoves + histHeuristic + boards
 
-    def sort_moves(self, move_list, board, move_dict):
+    def sort_killer_moves(self, move_list, board, move_dict):
         if move_list:
             move_list.sort(
                 key=lambda item: move_dict.get(
                     (board.zobrist, item[0].zobrist), float("-inf")
                 ),
+                reverse=True,
+            )
+
+    def sort_hist_moves(self, move_list, board, move_dict):
+        if move_list:
+            move_list.sort(
+                key=lambda item: move_dict.get(item[1], float("-inf")),
                 reverse=True,
             )
 
@@ -313,16 +416,16 @@ class Engine:
                 ]  # keep only the best 10 moves for depth
             )
 
-    def add_history_heuristic(self, move, score):  # add history heuristic
+    def add_history_heuristic(self, move, depth):  # add history heuristic
         if move in self.histHeuristic:
-            self.histHeuristic[move] += score
+            self.histHeuristic[move] += 2 * depth
         else:
             if len(self.histHeuristic) >= self.max_size:
                 self.trim_history_heuristic()
 
                 ("Trimming history")
 
-            self.histHeuristic[move] = score
+            self.histHeuristic[move] = 2 * depth
 
     def trim_history_heuristic(self):  # trim history heuristic
         sorted_history = sorted(
@@ -425,10 +528,14 @@ class Engine:
         if TT:
             score, bestBoard = self.alpha_beta_Negamax_TT(board, depth, alpha, beta)
 
+        elif MULTICUT:
+            score, bestBoard = self.multi_cut(2, 3, board, depth, alpha, beta)
+
         elif AS:
             score, bestBoard = self.aspirational_search(board, depth, alpha, beta)
         else:
             score, bestBoard = self.alpha_beta_Negamax(board, depth, alpha, beta)
+
         best_move = board.best_move
         board = copy.deepcopy(bestBoard)
 
@@ -443,10 +550,12 @@ class Engine:
         print(f"Number of moves: {board.move_number}")
         print(f"Score: {score}")
         print(f"depth: {depth}")
-        print(f"Max Depth: {self.max_depth}")
+        print(f"Prunings: {self.pruning_numbers}")
         print(f"Best move: {best_move}")
         print(f"Numbers of Collision: {self.collisions}")
         print("\n")
+        print(self.histHeuristic)
         self.collisions = 0
+        self.pruning_numbers = 0
 
         return board
