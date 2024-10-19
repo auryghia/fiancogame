@@ -8,8 +8,8 @@ CELL_SIZE = GRID_SIZE // 9
 # GAME SETTINGS
 TEAM = 1
 COLOR = 2
-TURN = 1
-PLAYERS = ["manually", "automatic"]
+TURN = 1 if COLOR == 1 else 2
+PLAYERS = ["automatic", "manually"]
 
 # ALPHA-BETA PRUNING
 DEPTH = 5

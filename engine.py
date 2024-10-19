@@ -371,8 +371,7 @@ class Engine:
                                 killerMoves.append(
                                     (newBoardObj, i, j, move[0], move[1])
                                 )
-                            elif ORDENING["captures"] and newBoardObj.capture_available:
-                                captMoves.append((newBoardObj, i, j, move[0], move[1]))
+
                             elif (
                                 ORDENING["history_heuristic"]
                                 and (i, j, move[0], move[1])

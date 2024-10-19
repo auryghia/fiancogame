@@ -8,7 +8,7 @@ from parameters import *
 pygame.init()
 pygame.display.set_caption(GAME_TITLE)
 screen = pygame.display.set_mode(GAME_RES, pygame.HWSURFACE | pygame.DOUBLEBUF)
-board_obj = Board(turn=TURN, team=TEAM, players=PLAYERS)
+board_obj = Board(turn=TURN, team=TEAM)
 env = PygameEnviroment(board_obj)
 env.board_obj.create_boards()
 engine = Engine(size=SIZE, reset_table=RESET_TABLE, p=PERCENTAGE)
@@ -39,7 +39,8 @@ while running:
             # automatic player
             if event.key == pygame.K_n:
                 print("Automatic Player")
-                if env.board_obj.players[env.board_obj.turn] == "automatic":
+                if PLAYERS[env.board_obj.turn - 1] == "automatic":
+
                     if env.board_obj.turn == env.board_obj.team:
                         print("Thinking...")
                         env.board_obj = engine.think(env.board_obj, DEPTH, MIN, MAX)
@@ -55,7 +56,7 @@ while running:
 
         else:
             # Manual player
-            if env.board_obj.players[env.board_obj.turn] == "manually":
+            if PLAYERS[env.board_obj.turn - 1] == "manually":
                 env.board_obj.handle_capture()
 
             if event.type == MOUSEBUTTONDOWN:

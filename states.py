@@ -6,15 +6,9 @@ import copy
 
 
 class Board:
-    def __init__(
-        self,
-        team,
-        turn: int = 1,
-        players: dict = {1: "automatic", 2: "manually"},
-    ) -> None:
+    def __init__(self, team, turn: int = 1) -> None:
         # Configuration
         self.team = team
-        self.players = players
 
         # Game state
         self.turn = turn
@@ -47,6 +41,7 @@ class Board:
         self,
     ):
         # Black
+
         board = self.board
         board[0, :] = 2
         board[1, 1] = 2
@@ -229,9 +224,7 @@ class Board:
                             self.utility -= 1000000
                         num_opponent_pieces += 1
         self.utility -= captures * VULNERABILITY_PENALTY
-        reduction_factor = max(0, 1 - (1 / self.move_number))
         self.utility += position_score
-
         self.utility += (num_pieces - num_opponent_pieces) * PIECE_WEIGHT
 
     def count_threats(self, i, j) -> int:
@@ -276,10 +269,10 @@ class PygameEnviroment:  # class for the pygame enviroment
         self.board_obj = board_obj
         self.selected_piece = None
 
-    def show(self, screen, screen_size, grid_size, cell_size, color):
+    def show(self, screen, screen_size, grid_size, cell_size, PCOLOR):
         font = pygame.font.Font(None, 36)
         letters = "abcdefghi"
-        if color == 1:
+        if PCOLOR == 1:
             numbers_team_1 = "987654321"
             numbers_team_2 = "123456789"
 
@@ -295,7 +288,7 @@ class PygameEnviroment:  # class for the pygame enviroment
 
                 color = (0, 0, 0)
                 if square == 1 or square == 2:
-                    if color == 1:
+                    if PCOLOR == 1:
                         pygame.draw.circle(
                             screen,
                             color,
@@ -360,7 +353,7 @@ class PygameEnviroment:  # class for the pygame enviroment
                     center=(x + cell_size // 2, y + cell_size // 2)
                 )
                 screen.blit(text, text_rect)
-        if color == 1:
+        if PCOLOR == 1:
 
             player_text = "White's Turn" if self.board_obj.turn == 1 else "Black's Turn"
         else:
