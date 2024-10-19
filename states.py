@@ -68,7 +68,6 @@ class Board:
     def possible_moves_f(self, i, j) -> None:
         """Calculate possible moves for the piece based on its current position."""
 
-        # Initialize possible moves dictionary
         direction = -1 if self.board[i, j] == self.team else 1
         moves_dict = {
             (i + direction, j): False,  # Simple forward move
@@ -136,30 +135,6 @@ class Board:
         new_board.move_pieces(oi, oj, i, j)
         return new_board
 
-    def count_threats(self, i, j) -> int:
-        num_threats = 0
-        direction = -1 if self.board[i, j] == self.team else 1
-        piece_behind = i - direction
-        if (
-            i + direction < 9
-            and i + direction >= 0
-            and piece_behind < 9
-            and piece_behind >= 0
-            and j + 1 < 9
-            and j - 1 >= 0
-        ):
-
-            if self.board[i + direction, j + 1] == 2:
-                if self.board[piece_behind, j - 1] == 0:
-
-                    num_threats += 1
-
-            if self.board[i + direction, j - 1] == 2:
-                if self.board[piece_behind, j + 1] == 0:
-
-                    num_threats += 1
-        return num_threats
-
     def move_pieces(self, oi, oj, i, j):
         self.board[i, j] = self.board[oi, oj]
         self.board[oi, oj] = 0
@@ -212,6 +187,18 @@ class Board:
                             self.possible_moves[(i, j)][move] = False
 
     def utility_function(self) -> None:
+        """
+        Evaluates the utility of the current board state based on factors like piece positions, captures,
+        and the difference in the number of pieces between the two teams. Positive values favor the current player,
+        while negative values favor the opponent. The utility function is used to score the board in a game search tree.
+
+        Weights and penalties:
+        - POSITION_WEIGHT: Encourages advancing pieces further up the board.
+        - PIECE_WEIGHT: Rewards having more pieces than the opponent.
+        - VULNERABILITY_PENALTY: Penalizes pieces that are vulnerable to capture.
+
+        The utility value is adjusted based on the current board configuration.
+        """
         POSITION_WEIGHT = 10
         PIECE_WEIGHT = 10
         VULNERABILITY_PENALTY = 100
@@ -247,6 +234,30 @@ class Board:
 
         self.utility += (num_pieces - num_opponent_pieces) * PIECE_WEIGHT
 
+    def count_threats(self, i, j) -> int:
+        num_threats = 0
+        direction = -1 if self.board[i, j] == self.team else 1
+        piece_behind = i - direction
+        if (
+            i + direction < 9
+            and i + direction >= 0
+            and piece_behind < 9
+            and piece_behind >= 0
+            and j + 1 < 9
+            and j - 1 >= 0
+        ):
+
+            if self.board[i + direction, j + 1] == 2:
+                if self.board[piece_behind, j - 1] == 0:
+
+                    num_threats += 1
+
+            if self.board[i + direction, j - 1] == 2:
+                if self.board[piece_behind, j + 1] == 0:
+
+                    num_threats += 1
+        return num_threats
+
     def undo_move(self):
         self.turn = 1 if self.turn == 2 else 2
         move = self.moves.pop()
@@ -263,9 +274,7 @@ class Board:
 class PygameEnviroment:  # class for the pygame enviroment
     def __init__(self, board_obj: Board) -> None:
         self.board_obj = board_obj
-        self.selected_piece = (
-            None  # Aggiungi l'attributo per tenere traccia del pezzo selezionato
-        )
+        self.selected_piece = None
 
     def show(self, screen, screen_size, grid_size, cell_size, color):
         font = pygame.font.Font(None, 36)
